@@ -59,7 +59,7 @@ timeout_ms = 300_000
 # Add chainhook as an event observer
 [[events_observer]]
 endpoint = "chainhook:20455"
-events_keys = ["*"]
+events_keys = ["*", "stackerdb"]
 timeout_ms = 300_000
 
 [burnchain]
