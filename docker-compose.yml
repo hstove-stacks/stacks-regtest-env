@@ -1,7 +1,7 @@
 version: "3.9"
 
 x-common-vars:
-  - &STACKS_BLOCKCHAIN_COMMIT de29c64d33a50b574724d562568c297621096dd9 # develop sep 25 2024
+  - &STACKS_BLOCKCHAIN_COMMIT 4bf673f975ffe85ea4494bab3fab86111c0111a5 # develop oct 23 2024
   - &STACKS_API_COMMIT ad4e1cae9afbc841fd89bbb0ba93f4b373ad5b6a # 8.0.1
   # - &PROXY_IP 172.18.0.100
   - &BTC_ADDR miEJtNKa3ASpA19v5ZhvbKTEieYjLpzCYT,mtyP5HvJHKgdFgGPA6repNs5CULDWnRvdm
@@ -17,8 +17,8 @@ x-common-vars:
   - &BITCOIN_PEER_PORT 18444
   - &MINE_INTERVAL ${MINE_INTERVAL:-1s}
   - &MINE_INTERVAL_EPOCH25 ${MINE_INTERVAL_EPOCH25:-3s} # 10 second bitcoin block times in epoch 2.5
-  - &MINE_INTERVAL_EPOCH3 ${MINE_INTERVAL_EPOCH3:-5s} # 10 minute bitcoin block times in epoch 3
-  - &NAKAMOTO_BLOCK_INTERVAL 2 # seconds to wait between issuing stx-transfer transactions (which triggers Nakamoto block production)
+  - &MINE_INTERVAL_EPOCH3 ${MINE_INTERVAL_EPOCH3:-6s} # 10 minute bitcoin block times in epoch 3
+  - &NAKAMOTO_BLOCK_INTERVAL 3 # seconds to wait between issuing stx-transfer transactions (which triggers Nakamoto block production)
   - &STACKS_20_HEIGHT ${STACKS_20_HEIGHT:-0}
   - &STACKS_2_05_HEIGHT ${STACKS_2_05_HEIGHT:-102}
   - &STACKS_21_HEIGHT ${STACKS_21_HEIGHT:-103}
