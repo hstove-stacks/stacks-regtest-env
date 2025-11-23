@@ -57,7 +57,7 @@ events_keys = ["stackerdb", "block_proposal", "burn_blocks"]
 
 [burnchain]
 chain = "bitcoin"
-mode = "nakamoto-neon"
+mode = "krypton"
 poll_time_secs = 1
 magic_bytes = "T3"
 pox_prepare_length = $POX_PREPARE_LENGTH
@@ -109,6 +109,18 @@ start_height = $STACKS_25_HEIGHT
 [[burnchain.epochs]]
 epoch_name = "3.0"
 start_height = $STACKS_30_HEIGHT
+
+[[burnchain.epochs]]
+epoch_name = "3.1"
+start_height = $STACKS_31_HEIGHT
+
+[[burnchain.epochs]]
+epoch_name = "3.2"
+start_height = $STACKS_32_HEIGHT
+
+[[burnchain.epochs]]
+epoch_name = "3.3"
+start_height = $STACKS_33_HEIGHT
 
 
 [[ustx_balance]]
