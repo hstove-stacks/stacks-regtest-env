@@ -19,6 +19,7 @@ x-common-vars:
   - &STACKS_31_HEIGHT ${STACKS_31_HEIGHT:-132}
   - &STACKS_32_HEIGHT ${STACKS_32_HEIGHT:-133}
   - &STACKS_33_HEIGHT ${STACKS_33_HEIGHT:-134}
+  - &STACKS_CHAIN_ID ${STACKS_CHAIN_ID:-0x80000000}
 
 services:
   stacks-node-follower:
@@ -59,6 +60,7 @@ services:
       STACKS_31_HEIGHT: *STACKS_31_HEIGHT
       STACKS_32_HEIGHT: *STACKS_32_HEIGHT
       STACKS_33_HEIGHT: *STACKS_33_HEIGHT
+      STACKS_CHAIN_ID: *STACKS_CHAIN_ID
     entrypoint:
       - /bin/bash
       - -c
@@ -67,7 +69,7 @@ services:
         mkdir -p $${DATA_DIR}
         rm -rf $${DATA_DIR}/*
         envsubst < config.toml.in > config.toml
-        until $(curl -o /dev/null -s stacks-node-miner:20443); do
+        until $(curl -o /dev/null -s stacks-node:20443); do
             sleep 5
         done
         exec stacks-node start --config config.toml

@@ -32,8 +32,8 @@ $REWARD_RECIPIENT_CONF
 # download_interval = 10
 # walk_interval = 10
 disable_block_download = true
-disable_inbound_handshakes = true
-disable_inbound_walks = true
+disable_inbound_handshakes = false
+disable_inbound_walks = false
 public_ip_address = "1.1.1.1:1234"
 auth_token = "12345"
 
