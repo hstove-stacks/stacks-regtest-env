@@ -122,6 +122,14 @@ start_height = $STACKS_32_HEIGHT
 epoch_name = "3.3"
 start_height = $STACKS_33_HEIGHT
 
+[[burnchain.epochs]]
+epoch_name = "3.4"
+start_height = $STACKS_34_HEIGHT
+
+[[burnchain.epochs]]
+epoch_name = "3.5"
+start_height = $STACKS_35_HEIGHT
+
 
 [[ustx_balance]]
 address = "STB44HYPYAT2BB2QE513NSP81HTMYWBJP02HPGK6"
