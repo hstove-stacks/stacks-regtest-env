@@ -358,6 +358,7 @@ services:
     networks:
       - stacks
     image: "postgres:15"
+    pull_policy: if_not_present
     ports:
       - "5490:5490"
     volumes:
