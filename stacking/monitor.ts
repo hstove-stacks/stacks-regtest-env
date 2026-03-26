@@ -1,3 +1,4 @@
+import { bitcoinRPC } from './btc-rpc';
 import {
   accounts,
   nodeUrl,
@@ -8,6 +9,7 @@ import {
   parseEnvInt,
   txApi,
   logger,
+  WALLET_NAME,
 } from './common';
 import { Transaction, ContractCallTransaction } from '@stacks/stacks-blockchain-api-types';
 
@@ -35,14 +37,20 @@ async function getTransactions(): Promise<ContractCallTransaction[]> {
   }) as ContractCallTransaction[];
 }
 
+async function getBtcStakerBalance() {
+  const balance = await bitcoinRPC('getbalance', [], WALLET_NAME);
+  return balance;
+}
+
 async function getInfo() {
   let { client } = accounts[0];
-  const [poxInfo, blockInfo, txs] = await Promise.all([
+  const [poxInfo, blockInfo, txs, btcStakerBalance] = await Promise.all([
     client.getPoxInfo(),
     blocksApi.getBlock({
       heightOrHash: 'latest',
     }),
     getTransactions(),
+    getBtcStakerBalance(),
   ]);
   const { reward_cycle_id } = poxInfo;
   return {
@@ -50,6 +58,7 @@ async function getInfo() {
     blockInfo,
     nextCycleId: reward_cycle_id + 1,
     txs,
+    btcStakerBalance,
   };
 }
 
@@ -95,6 +104,7 @@ async function loop() {
       rewardCycle: reward_cycle_id,
       lastBurnBlock: `${burnHeightTimeAgo.toFixed(0)}s ago`,
       burnHash: blockInfo.burn_block_hash,
+      btcStakerBalance: info.btcStakerBalance,
     });
 
     if (current_burnchain_block_height && current_burnchain_block_height !== lastBurnHeight) {

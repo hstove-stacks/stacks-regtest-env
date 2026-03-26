@@ -54,8 +54,10 @@ export const accountsApi = new AccountsApi(apiConfig);
 
 export const EPOCH_30_START = parseEnvInt('STACKS_30_HEIGHT', true);
 export const EPOCH_25_START = parseEnvInt('STACKS_25_HEIGHT', true);
+export const EPOCH_35_START = parseEnvInt('STACKS_35_HEIGHT', true);
 export const POX_PREPARE_LENGTH = parseEnvInt('POX_PREPARE_LENGTH', true);
 export const POX_REWARD_LENGTH = parseEnvInt('POX_REWARD_LENGTH', true);
+export const WALLET_NAME = 'btc_staking';
 
 export const accounts = process.env.STACKING_KEYS!.split(',').map((privKey, index) => {
   const pubKey = getPublicKeyFromPrivate(privKey);
