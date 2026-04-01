@@ -5,13 +5,9 @@ import {
 } from '@stacks/transactions';
 import { getPublicKeyFromPrivate, publicKeyToBtcAddress } from '@stacks/encryption';
 import {
-  InfoApi,
-  Configuration,
-  BlocksApi,
-  TransactionsApi,
-  SmartContractsApi,
-  AccountsApi,
+  createClient,
 } from '@stacks/blockchain-api-client';
+import { Transaction } from '@stacks/stacks-blockchain-api-types';
 import { Logger, pino } from 'pino';
 
 const serviceName = process.env.SERVICE_NAME || 'JS';
@@ -41,14 +37,9 @@ export const nodeUrl = `http://${process.env.STACKS_CORE_RPC_HOST}:${process.env
 export const network = STACKS_TESTNET;
 network.chainId = CHAIN_ID;
 network.client.baseUrl = nodeUrl;
-const apiConfig = new Configuration({
-  basePath: nodeUrl,
+export const apiClient = createClient({
+  baseUrl: nodeUrl,
 });
-export const infoApi = new InfoApi(apiConfig);
-export const blocksApi = new BlocksApi(apiConfig);
-export const txApi = new TransactionsApi(apiConfig);
-export const contractsApi = new SmartContractsApi(apiConfig);
-export const accountsApi = new AccountsApi(apiConfig);
 
 export const EPOCH_30_START = parseEnvInt('STACKS_30_HEIGHT', true);
 export const EPOCH_25_START = parseEnvInt('STACKS_25_HEIGHT', true);
@@ -129,4 +120,29 @@ export function isPreparePhase(burnBlock: number) {
 
 export function didCrossPreparePhase(lastBurnHeight: number, newBurnHeight: number) {
   return isPreparePhase(newBurnHeight) && !isPreparePhase(lastBurnHeight);
+}
+
+export async function waitForTxConfirmed(txid: string) {
+  return new Promise(resolve => {
+    const interval = setInterval(async () => {
+      const { data: tx, ...rest } = await apiClient.GET(`/extended/v1/tx/{tx_id}`, {
+        params: {
+          path: {
+            tx_id: txid,
+          },
+        },
+      });
+      if (!tx) {
+        logger.warn({ ...rest }, 'Waiting for tx to be confirmed');
+        return;
+      }
+      if (tx.tx_status !== 'pending') {
+        if (tx.tx_status !== 'success') {
+          logger.error({ ...tx }, 'Tx failed');
+        }
+        clearInterval(interval);
+        resolve(tx);
+      }
+    }, 500);
+  });
 }

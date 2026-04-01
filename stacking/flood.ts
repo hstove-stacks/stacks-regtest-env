@@ -18,7 +18,7 @@ if (process.argv.slice(2).length > 0) {
   config({ path: './tx-broadcaster.env' });
 }
 import { bytesToHex } from '@stacks/common';
-import { logger, parseEnvInt, contractsApi, accountsApi, network } from './common.js';
+import { logger, parseEnvInt, network } from './common.js';
 
 const broadcastInterval = parseInt(process.env.NAKAMOTO_BLOCK_INTERVAL ?? '2');
 const EPOCH_30_START = parseInt(process.env.STACKS_30_HEIGHT ?? '0');

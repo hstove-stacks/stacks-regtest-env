@@ -5,13 +5,11 @@ import {
   waitForSetup,
   EPOCH_30_START,
   didCrossPreparePhase,
-  blocksApi,
   parseEnvInt,
-  txApi,
   logger,
   WALLET_NAME,
+  apiClient,
 } from './common.js';
-import { Transaction, ContractCallTransaction } from '@stacks/stacks-blockchain-api-types';
 
 let lastBurnHeight = 0;
 let lastStxHeight = 0;
@@ -27,14 +25,20 @@ const monitorInterval = parseEnvInt('MONITOR_INTERVAL') ?? 2;
 
 logger.debug('Exit from monitor?', EXIT_FROM_MONITOR);
 
-async function getTransactions(): Promise<ContractCallTransaction[]> {
-  let res = await txApi.getTransactionsByBlock({
-    heightOrHash: 'latest',
+async function getTransactions() {
+  const { data } = await apiClient.GET('/extended/v2/blocks/{height_or_hash}/transactions', {
+    params: {
+      path: {
+        height_or_hash: 'latest',
+      },
+    },
   });
-  let txs = res.results as Transaction[];
-  return txs.filter(tx => {
+  if (!data) {
+    return [];
+  }
+  return data.results.filter(tx => {
     return tx.tx_type === 'contract_call';
-  }) as ContractCallTransaction[];
+  });
 }
 
 async function getBtcStakerBalance() {
@@ -44,9 +48,14 @@ async function getBtcStakerBalance() {
 
 async function getLatestBlock() {
   try {
-    return await blocksApi.getBlock({
-      heightOrHash: 'latest',
+    const { data } = await apiClient.GET('/extended/v2/blocks/{height_or_hash}', {
+      params: {
+        path: {
+          height_or_hash: 'latest',
+        },
+      },
     });
+    return data;
   } catch (error) {
     return null;
   }
