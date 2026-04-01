@@ -1,7 +1,5 @@
-version: "3.9"
-
 x-common-vars:
-  - &STACKS_BLOCKCHAIN_COMMIT 3425ccdcdce92c4bd5e1efce5bef136b3e65c473 # feat/epoch-3-5-rc
+  - &STACKS_BLOCKCHAIN_COMMIT 59d0928bba3f401552ef65b6c0b79ac6dc4cd303 # feat/epoch-3-5-rc
   - &STACKS_API_COMMIT cb5881749553a34704cab62a9631341cb30f2c17 # 8.13.4
   - &BITCOIN_ADDRESSES miEJtNKa3ASpA19v5ZhvbKTEieYjLpzCYT
   - &MINER_SEED 9e446f6b0c6a96cf2190e54bcd5a8569c3e386f091605499464389b8d4e0bfc201 # stx: STEW4ZNT093ZHK4NEQKX8QJGM2Y7WWJ2FQQS5C19, btc: miEJtNKa3ASpA19v5ZhvbKTEieYjLpzCYT, pub_key: 035379aa40c02890d253cfa577964116eb5295570ae9f7287cbae5f2585f5b2c7c, wif: cStMQXkK5yTFGP3KbNXYQ3sJf2qwQiKrZwR9QJnksp32eKzef1za
@@ -10,8 +8,9 @@ x-common-vars:
   - &BITCOIN_RPC_USER btc
   - &BITCOIN_RPC_PASS btc
   - &MINE_INTERVAL ${MINE_INTERVAL:-1s}
-  - &MINE_INTERVAL_EPOCH25 ${MINE_INTERVAL_EPOCH25:-5s} # 5 second bitcoin block times in epoch 2.5
-  - &MINE_INTERVAL_EPOCH3 ${MINE_INTERVAL_EPOCH3:-30s} # 30 second bitcoin block times in epoch 3
+  - &MINE_INTERVAL_EPOCH25 ${MINE_INTERVAL_EPOCH25:-2s} # 5 second bitcoin block times in epoch 2.5
+  - &MINE_INTERVAL_EPOCH3 ${MINE_INTERVAL_EPOCH3:-3s} # 30 second bitcoin block times in epoch 3
+  - &MINE_INTERVAL_EPOCH35 ${MINE_INTERVAL_EPOCH35:-20s} # 5 second bitcoin block times in epoch 3.5
   - &NAKAMOTO_BLOCK_INTERVAL 2 # seconds to wait between issuing stx-transfer transactions (which triggers Nakamoto block production)
   - &STACKS_20_HEIGHT ${STACKS_20_HEIGHT:-0}
   - &STACKS_2_05_HEIGHT ${STACKS_2_05_HEIGHT:-102}
@@ -26,7 +25,7 @@ x-common-vars:
   - &STACKS_32_HEIGHT ${STACKS_32_HEIGHT:-133}
   - &STACKS_33_HEIGHT ${STACKS_33_HEIGHT:-134}
   - &STACKS_34_HEIGHT ${STACKS_34_HEIGHT:-135}
-  - &STACKS_35_HEIGHT ${STACKS_35_HEIGHT:-136}
+  - &STACKS_35_HEIGHT ${STACKS_35_HEIGHT:-141}
   - &STACKING_CYCLES ${STACKING_CYCLES:-1} # number of cycles to stack-stx or stack-extend for
   - &POX_PREPARE_LENGTH ${POX_PREPARE_LENGTH:-5}
   - &POX_REWARD_LENGTH ${POX_REWARD_LENGTH:-20}
@@ -77,9 +76,11 @@ services:
       MINE_INTERVAL: *MINE_INTERVAL
       MINE_INTERVAL_EPOCH3: *MINE_INTERVAL_EPOCH3
       MINE_INTERVAL_EPOCH25: *MINE_INTERVAL_EPOCH25
+      MINE_INTERVAL_EPOCH35: *MINE_INTERVAL_EPOCH35
       INIT_BLOCKS: 101
       STACKS_30_HEIGHT: *STACKS_30_HEIGHT
       STACKS_25_HEIGHT: *STACKS_25_HEIGHT
+      STACKS_35_HEIGHT: *STACKS_35_HEIGHT
     entrypoint:
       - /bin/bash
       - -c
@@ -227,7 +228,10 @@ services:
 
           SLEEP_DURATION=$${MINE_INTERVAL}
           BLOCK_HEIGHT=$$(bitcoin-cli -rpcconnect=bitcoind getblockcount)
-          if [ "$${BLOCK_HEIGHT}" -ge $$(( $${STACKS_30_HEIGHT} - 1 )) ]; then
+          if [ "$${BLOCK_HEIGHT}" -ge "$${STACKS_35_HEIGHT}" ]; then
+            echo "In Epoch3.5, sleeping for $${MINE_INTERVAL_EPOCH35} ..."
+            SLEEP_DURATION=$${MINE_INTERVAL_EPOCH35}
+          elif [ "$${BLOCK_HEIGHT}" -ge $$(( $${STACKS_30_HEIGHT} - 1 )) ]; then
             echo "In Epoch3, sleeping for $${MINE_INTERVAL_EPOCH3} ..."
             SLEEP_DURATION=$${MINE_INTERVAL_EPOCH3}
           elif [ "$${BLOCK_HEIGHT}" -ge "$${STACKS_25_HEIGHT}" ]; then
@@ -284,6 +288,7 @@ services:
       POX_REWARD_LENGTH: *POX_REWARD_LENGTH
       REWARD_RECIPIENT: *REWARD_RECIPIENT
       STACKS_CHAIN_ID: *STACKS_CHAIN_ID
+      STACKS_LOG_JSON: 1
     entrypoint:
       - /bin/bash
       - -c

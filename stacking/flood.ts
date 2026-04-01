@@ -1,19 +1,15 @@
-import { StacksTestnet } from '@stacks/network';
 import { StackingClient } from '@stacks/stacking';
 import {
-  TransactionVersion,
   getAddressFromPrivateKey,
-  getNonce,
-  makeSTXTokenTransfer,
   broadcastTransaction,
   makeRandomPrivKey,
-  StacksTransaction,
   makeContractDeploy,
   makeContractCall,
-  tupleCV,
   uintCV,
   AnchorMode,
   PostConditionMode,
+  StacksTransactionWire,
+  fetchNonce,
 } from '@stacks/transactions';
 import { readFileSync } from 'fs';
 import { config } from 'dotenv';
@@ -22,20 +18,21 @@ if (process.argv.slice(2).length > 0) {
   config({ path: './tx-broadcaster.env' });
 }
 import { bytesToHex } from '@stacks/common';
-import { logger, parseEnvInt, contractsApi, accountsApi } from './common';
+import { logger, parseEnvInt, contractsApi, accountsApi, network } from './common.js';
 
 const broadcastInterval = parseInt(process.env.NAKAMOTO_BLOCK_INTERVAL ?? '2');
-const url = `http://${process.env.STACKS_CORE_RPC_HOST}:${process.env.STACKS_CORE_RPC_PORT}`;
-const network = new StacksTestnet({ url });
 const EPOCH_30_START = parseInt(process.env.STACKS_30_HEIGHT ?? '0');
 
 const bootstrapperKey = process.env.BOOTSTRAPPER_KEY!;
 const bootstrapper = {
   privKey: bootstrapperKey,
-  stxAddress: getAddressFromPrivateKey(bootstrapperKey, TransactionVersion.Testnet),
+  stxAddress: getAddressFromPrivateKey(bootstrapperKey, network),
 };
 
-const client = new StackingClient(bootstrapper.stxAddress, network);
+const client = new StackingClient({
+  address: bootstrapper.stxAddress,
+  network,
+});
 
 const floodContract = readFileSync('./flooder.clar', { encoding: 'utf-8' });
 
@@ -48,8 +45,8 @@ const flooders: { privKey: string; stxAddress: string; nonce: bigint }[] = [];
 for (let i = 0; i < NUM_FLOODERS; i++) {
   const privKey = makeRandomPrivKey();
   flooders.push({
-    privKey: bytesToHex(privKey.data),
-    stxAddress: getAddressFromPrivateKey(privKey.data, TransactionVersion.Testnet),
+    privKey,
+    stxAddress: getAddressFromPrivateKey(privKey, network),
     nonce: BigInt(0),
   });
 }
@@ -58,7 +55,7 @@ let hasSentToFlooders = false;
 const floodContractDeployer = bootstrapper.stxAddress;
 
 async function bootstrapFlooders() {
-  const nonce = await getNonce(bootstrapper.stxAddress, network);
+  const nonce = await fetchNonce({ address: bootstrapper.stxAddress, network });
   logger.info('Bootstrapping flooders');
   // sync iterate
   let i = 0n;
@@ -80,7 +77,6 @@ async function bootstrapFlooders() {
     network,
     nonce: nonce + i,
     senderKey: bootstrapper.privKey,
-    anchorMode: AnchorMode.Any,
     codeBody: contractBody,
   });
   await broadcast(bootstrapTx, bootstrapper.stxAddress);
@@ -94,7 +90,6 @@ async function bootstrapFlooders() {
         contractName: 'flood',
         codeBody: floodContract,
         fee: 3000000,
-        anchorMode: 'any',
         network,
         postConditionMode: PostConditionMode.Allow,
       }),
@@ -145,7 +140,6 @@ async function flood() {
         functionArgs: [uintCV(1), uintCV(2), uintCV(3)],
         senderKey: flooder.privKey,
         nonce: nonce + i,
-        anchorMode: 'any',
         network,
         fee: 10000,
       });
@@ -156,11 +150,14 @@ async function flood() {
   await Promise.all(accountFloods);
 }
 
-async function broadcast(tx: StacksTransaction, sender?: string) {
+async function broadcast(tx: StacksTransactionWire, sender?: string) {
   const txType = tx.payload.payloadType;
   const label = sender ? accountLabel(sender) : 'Unknown';
-  const broadcastResult = await broadcastTransaction(tx, network);
-  if (broadcastResult.error) {
+  const broadcastResult = await broadcastTransaction({
+    transaction: tx,
+    network,
+  });
+  if ('error' in broadcastResult) {
     logger.error({ ...broadcastResult, account: label }, `Error broadcasting ${txType}`);
     return false;
   } else {
@@ -185,7 +182,7 @@ async function waitForNakamoto() {
         break;
       }
     } catch (error) {
-      if (/(ECONNREFUSED|ENOTFOUND|SyntaxError)/.test(error.cause?.message)) {
+      if (error instanceof Error && 'cause' in error && error.cause instanceof Error && /(ECONNREFUSED|ENOTFOUND|SyntaxError)/.test(error.cause.message)) {
         logger.info(`Stacks node not ready, waiting...`);
       } else {
         logger.error('Error getting pox info:', error);

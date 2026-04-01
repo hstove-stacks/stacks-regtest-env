@@ -1,0 +1,16 @@
+
+[project]
+name = "core-contracts"
+
+[repl]
+costs_version = 1
+
+[contracts.pox-5]
+path = "./contracts/pox-5.clar"
+clarity_version = 4
+epoch = 3.3
+
+[repl.analysis.lints]
+unused_const = "warn"
+unused_data_var = "warn"
+panic = "off"

@@ -1,9 +1,7 @@
 import { StackingClient } from '@stacks/stacking';
-import { StacksTestnet } from '@stacks/network';
+import { STACKS_TESTNET } from '@stacks/network';
 import {
   getAddressFromPrivateKey,
-  TransactionVersion,
-  createStacksPrivateKey,
 } from '@stacks/transactions';
 import { getPublicKeyFromPrivate, publicKeyToBtcAddress } from '@stacks/encryption';
 import {
@@ -14,8 +12,7 @@ import {
   SmartContractsApi,
   AccountsApi,
 } from '@stacks/blockchain-api-client';
-import pino, { Logger } from 'pino';
-import { ChainID } from '@stacks/common';
+import { Logger, pino } from 'pino';
 
 const serviceName = process.env.SERVICE_NAME || 'JS';
 export let logger: Logger;
@@ -38,11 +35,12 @@ if (process.env.STACKS_LOG_JSON === '1') {
   });
 }
 
-export const CHAIN_ID = parseEnvInt('STACKS_CHAIN_ID', false) ?? ChainID.Testnet;
+export const CHAIN_ID = parseEnvInt('STACKS_CHAIN_ID', false) ?? STACKS_TESTNET.chainId;
 
 export const nodeUrl = `http://${process.env.STACKS_CORE_RPC_HOST}:${process.env.STACKS_CORE_RPC_PORT}`;
-export const network = new StacksTestnet({ url: nodeUrl });
+export const network = STACKS_TESTNET;
 network.chainId = CHAIN_ID;
+network.client.baseUrl = nodeUrl;
 const apiConfig = new Configuration({
   basePath: nodeUrl,
 });
@@ -61,9 +59,9 @@ export const WALLET_NAME = 'btc_staking';
 
 export const accounts = process.env.STACKING_KEYS!.split(',').map((privKey, index) => {
   const pubKey = getPublicKeyFromPrivate(privKey);
-  const stxAddress = getAddressFromPrivateKey(privKey, TransactionVersion.Testnet);
-  const signerPrivKey = createStacksPrivateKey(privKey);
-  const signerPubKey = getPublicKeyFromPrivate(signerPrivKey.data);
+  const stxAddress = getAddressFromPrivateKey(privKey, network);
+  const signerPrivKey = privKey;
+  const signerPubKey = getPublicKeyFromPrivate(signerPrivKey);
   return {
     privKey,
     pubKey,
@@ -73,7 +71,10 @@ export const accounts = process.env.STACKING_KEYS!.split(',').map((privKey, inde
     signerPubKey: signerPubKey,
     targetSlots: index + 1,
     index,
-    client: new StackingClient(stxAddress, network),
+    client: new StackingClient({
+      address: stxAddress,
+      network,
+    }),
     logger: logger.child({
       account: stxAddress,
       index: index,
@@ -88,9 +89,9 @@ export const maxAmount = MAX_U128;
 
 export async function waitForSetup() {
   try {
-    await accounts[0].client.getPoxInfo();
+    await accounts[0]!.client.getPoxInfo();
   } catch (error) {
-    if (/(ECONNREFUSED|ENOTFOUND|SyntaxError)/.test(error.cause?.message)) {
+    if (error instanceof Error && 'cause' in error && error.cause instanceof Error && /(ECONNREFUSED|ENOTFOUND|SyntaxError)/.test(error.cause.message)) {
       console.log(`Stacks node not ready, waiting...`);
     }
     await new Promise(resolve => setTimeout(resolve, 3000));

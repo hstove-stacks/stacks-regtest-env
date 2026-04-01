@@ -1,4 +1,4 @@
-import { bitcoinRPC } from './btc-rpc';
+import { bitcoinRPC } from './btc-rpc.js';
 import {
   accounts,
   nodeUrl,
@@ -10,7 +10,7 @@ import {
   txApi,
   logger,
   WALLET_NAME,
-} from './common';
+} from './common.js';
 import { Transaction, ContractCallTransaction } from '@stacks/stacks-blockchain-api-types';
 
 let lastBurnHeight = 0;
@@ -42,13 +42,21 @@ async function getBtcStakerBalance() {
   return balance;
 }
 
+async function getLatestBlock() {
+  try {
+    return await blocksApi.getBlock({
+      heightOrHash: 'latest',
+    });
+  } catch (error) {
+    return null;
+  }
+}
+
 async function getInfo() {
-  let { client } = accounts[0];
+  let { client } = accounts[0]!;
   const [poxInfo, blockInfo, txs, btcStakerBalance] = await Promise.all([
     client.getPoxInfo(),
-    blocksApi.getBlock({
-      heightOrHash: 'latest',
-    }),
+    getLatestBlock(),
     getTransactions(),
     getBtcStakerBalance(),
   ]);
@@ -88,22 +96,22 @@ async function loop() {
   try {
     const { poxInfo, blockInfo, ...info } = await getInfo();
     let { reward_cycle_id, current_burnchain_block_height } = poxInfo;
-    let { height } = blockInfo;
+    const height = blockInfo?.height ?? 0;
     let showBurnMsg = false;
     let showPrepareMsg = false;
     let showCycleMsg = false;
     let showStxBlockMsg = false;
-    let burnHeightDate = new Date(blockInfo.burn_block_time * 1000);
+    let burnHeightDate = new Date(blockInfo?.burn_block_time ?? 0 * 1000);
     let burnHeightTimeAgo = (new Date().getTime() - burnHeightDate.getTime()) / 1000;
     const loopLog = logger.child({
       height,
       burnHeight: current_burnchain_block_height,
       // burnHeightTime:
       cycle: reward_cycle_id,
-      txCount: blockInfo.tx_count,
+      txCount: blockInfo?.tx_count,
       rewardCycle: reward_cycle_id,
       lastBurnBlock: `${burnHeightTimeAgo.toFixed(0)}s ago`,
-      burnHash: blockInfo.burn_block_hash,
+      burnHash: blockInfo?.burn_block_hash,
       btcStakerBalance: info.btcStakerBalance,
     });
 
@@ -155,6 +163,7 @@ async function loop() {
       if (current_burnchain_block_height === EPOCH_30_START) {
         loopLog.info('Starting Nakamoto');
       }
+      // loopLog.info({ poxInfo });
     }
     if (showPrepareMsg) {
       loopLog.info(
@@ -176,7 +185,7 @@ async function loop() {
       }
     }
 
-    if (!showBurnMsg && showStxBlockMsg && blockInfo.burn_block_height >= EPOCH_30_START) {
+    if (!showBurnMsg && showStxBlockMsg && (blockInfo?.burn_block_height ?? 0) >= EPOCH_30_START) {
       loopLog.info({ lastStxBlockDiff: lastStxBlockDiff / 1000 }, 'Nakamoto block');
     }
     if (showStxBlockMsg && info.txs.length > 0) {

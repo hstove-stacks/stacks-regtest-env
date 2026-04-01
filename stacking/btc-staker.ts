@@ -6,9 +6,10 @@ import {
   tupleCV,
   AnchorMode,
   createAddress,
+  someCV,
 } from '@stacks/transactions';
 import { hex } from '@scure/base';
-import { Pox4SignatureTopic } from '@stacks/stacking';
+import { Pox4SignatureTopic, PoxInfo } from '@stacks/stacking';
 import {
   accounts,
   maxAmount,
@@ -21,14 +22,16 @@ import {
   type Account,
   EPOCH_35_START,
   WALLET_NAME,
-} from './common';
-import { createOrLoadWallet, getNewAddress, listUnspent, sendToAddress } from './btc-rpc';
+} from './common.js';
+import { createOrLoadWallet, getNewAddress, listUnspent, sendToAddress } from './btc-rpc.js';
 import {
   getUnlockBytes,
   serializeLockupScript,
   calculateUnlockBurnHeight,
   getLockingAddress,
-} from './btc-locking';
+} from './btc-locking.js';
+import { pox5 } from './contracts.js';
+import { TESTNET_BURN_ADDRESS } from '@clarigen/core';
 
 const stakingInterval = parseEnvInt('STACKING_INTERVAL', true);
 const postTxWait = parseEnvInt('POST_TX_WAIT', true);
@@ -61,7 +64,7 @@ async function initBtcWallet() {
 
 async function submitStake(
   account: Account,
-  poxInfo: any,
+  poxInfo: PoxInfo,
   unlockBytes: Uint8Array,
 ) {
   const authId = Math.floor(Math.random() * 0xffffffffffff);
@@ -77,26 +80,42 @@ async function submitStake(
   });
 
   const poxAddr = createAddress(account.stxAddress);
-  const [contractAddr, contractName] = poxInfo.contract_id.split('.');
+  const [contractAddr] = poxInfo.contract_id.split('.');
+
+  const stakeFnCall = pox5.stake({
+    amountUstx: 100n,
+    poxAddr: {
+      version: Buffer.from([poxAddr.version]),
+      hashbytes: Buffer.from(hex.decode(poxAddr.hash160)),
+    },
+    startBurnHt: poxInfo.current_burnchain_block_height!,
+    signerSig: Buffer.from(hex.decode(signerSignature)),
+    signerKey: Buffer.from(hex.decode(account.signerPubKey)),
+    maxAmount,
+    authId,
+    numCycles: stakingCycles,
+    unlockBytes: unlockBytes,
+  });
 
   const txOptions = {
-    contractAddress: contractAddr,
-    contractName,
+    // ...stakeFnCall,
+    contractAddress: TESTNET_BURN_ADDRESS,
+    contractName: 'pox-5',
     functionName: 'stake',
     functionArgs: [
       // uintCV(account.balance!),
       uintCV(100n),
       tupleCV({
-        version: bufferCV(Buffer.from([poxAddr.version])),
-        hashbytes: bufferCV(Buffer.from(hex.decode(poxAddr.hash160))),
+        version: bufferCV(new Uint8Array([1])),
+        hashbytes: bufferCV(hex.decode(poxAddr.hash160)),
       }),
-      bufferCV(Buffer.from(hex.decode(signerSignature))),
-      bufferCV(Buffer.from(hex.decode(account.signerPubKey))),
+      uintCV(poxInfo.current_burnchain_block_height!),
+      someCV(bufferCV(hex.decode(signerSignature))),
+      bufferCV(hex.decode(account.signerPubKey)),
       uintCV(maxAmount),
       uintCV(authId),
       uintCV(stakingCycles),
       bufferCV(Buffer.from(unlockBytes)),
-      uintCV(poxInfo.current_burnchain_block_height!),
     ],
     senderKey: account.privKey,
     network,
@@ -105,8 +124,11 @@ async function submitStake(
   };
 
   const tx = await makeContractCall(txOptions);
-  const result = await broadcastTransaction(tx, network);
-  account.logger.info({ txid: result.txid }, 'L2 stake tx broadcast');
+  const result = await broadcastTransaction({
+    transaction: tx,
+    network,
+  });
+  account.logger.info({ ...result }, 'L2 stake tx broadcast');
   return result;
 }
 
@@ -150,7 +172,10 @@ async function submitStakeExtend(account: Account, poxInfo: any, unlockBytes: Ui
   };
 
   const tx = await makeContractCall(txOptions);
-  const result = await broadcastTransaction(tx, network);
+  const result = await broadcastTransaction({
+    transaction: tx,
+    network,
+  });
   account.logger.info({ txid: result.txid }, 'L2 stake-extend tx broadcast');
   return result;
 }
@@ -177,9 +202,9 @@ async function submitBtcLock(account: Account, unlockBurnHeight: bigint, unlockB
 let lastStakedCycle = 0;
 
 async function run() {
-  const poxInfo = await accounts[0].client.getPoxInfo();
+  const poxInfo = await accounts[0]!.client.getPoxInfo();
   if (poxInfo.current_burnchain_block_height! < EPOCH_35_START) {
-    logger.info({ burnHeight: poxInfo.current_burnchain_block_height }, 'Not on epoch 3.5 yet, skipping');
+    // logger.info({ burnHeight: poxInfo.current_burnchain_block_height }, 'Not on epoch 3.5 yet, skipping');
     return;
   }
 
@@ -203,13 +228,16 @@ async function run() {
     const unlockBytes = getUnlockBytes(account.pubKey);
     const unlockBurnHeight = calculateUnlockBurnHeight(currentCycle, stakingCycles, POX_REWARD_LENGTH);
 
-    const ALWAYS_STAKE = true; // for now, testing
+    const ALWAYS_STAKE = false; // for now, testing
 
     if (ALWAYS_STAKE && nowCycle > lastStakedCycle) {
       logger.info({ nowCycle, lastStakedCycle }, 'Staking through next cycle');
       // await submitStake(account, poxInfo, unlockBytes);
 
       await submitBtcLock(account, unlockBurnHeight, unlockBytes);
+      if (account.lockedAmount === 0n) {
+        await submitStake(account, poxInfo, unlockBytes);
+      }
       await new Promise(r => setTimeout(r, postTxWait * 1000));
       continue;
     }
@@ -217,7 +245,10 @@ async function run() {
     // TODO: this won't trigger because we don't have pox-locking for pox-5 yet
 
     if (account.lockedAmount === 0n) {
-      account.logger.info('Account unlocked, staking...');
+      account.logger.info('Account unlocked, staking...', {
+        account: account.index,
+        rewardCycle: poxInfo.reward_cycle_id,
+      });
 
       await submitStake(account, poxInfo, unlockBytes);
       await new Promise(r => setTimeout(r, postTxWait * 1000));
