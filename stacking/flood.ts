@@ -18,7 +18,7 @@ if (process.argv.slice(2).length > 0) {
   config({ path: './tx-broadcaster.env' });
 }
 import { bytesToHex } from '@stacks/common';
-import { logger, parseEnvInt, network } from './common.js';
+import { logger, parseEnvInt, network, apiClient, nodeUrl } from './common.js';
 
 const broadcastInterval = parseInt(process.env.NAKAMOTO_BLOCK_INTERVAL ?? '2');
 const EPOCH_30_START = parseInt(process.env.STACKS_30_HEIGHT ?? '0');
@@ -104,10 +104,9 @@ async function bootstrapFlooders() {
 
 async function isContractDeployed(address: string) {
   try {
-    const result = await contractsApi.getContractSource({
-      contractAddress: address,
-      contractName: 'flood',
-    });
+    const url = `${nodeUrl}/v2/contracts/${address.replace('.', '/')}/source`;
+    const res = await fetch(url);
+    const result = (await res.json()) as { source: string };
     return !!result.source;
   } catch (e) {
     return false;
@@ -124,11 +123,18 @@ async function run() {
 
 async function flood() {
   const accountFloods = flooders.map(async (flooder, n) => {
-    // const nonce = await getNonce(flooder.stxAddress, network);
-    const nonces = accountsApi.getAccountNonces({
-      principal: flooder.stxAddress,
+    const { data } = await apiClient.GET('/extended/v1/address/{principal}/nonces', {
+      params: {
+        path: {
+          principal: flooder.stxAddress,
+        },
+      },
     });
-    const nonce = ((await nonces).last_executed_tx_nonce ?? -1) + 1;
+    if (!data) {
+      logger.error(`No nonces found for ${flooder.stxAddress}`);
+      return;
+    }
+    const nonce = (data.last_executed_tx_nonce ?? -1) + 1;
     logger.info(`Flooder ${n} has nonce ${nonce.toString()}`);
     // return { ...account, nonce };
     let txFloods = new Array(TX_PER_FLOOD).fill(0).map(async (_, i) => {

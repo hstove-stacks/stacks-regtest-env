@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "format": "prettier --write *.ts",
-    "flood": "dotenvx run -f ./tx-broadcaster.env -- npx tsx flood.ts"
+    "flood": "dotenvx run -f ./tx-broadcaster.env -- npx tsx flood.ts",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
