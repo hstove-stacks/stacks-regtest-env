@@ -1,5 +1,5 @@
 x-common-vars:
-  - &STACKS_BLOCKCHAIN_COMMIT 59d0928bba3f401552ef65b6c0b79ac6dc4cd303 # feat/epoch-3-5-rc
+  - &STACKS_BLOCKCHAIN_COMMIT 190a195f690025a07371cb2a5e84b3f17cc63c92 # feat/epoch-3-5-rc
   - &STACKS_API_COMMIT cb5881749553a34704cab62a9631341cb30f2c17 # 8.13.4
   - &BITCOIN_ADDRESSES miEJtNKa3ASpA19v5ZhvbKTEieYjLpzCYT
   - &MINER_SEED 9e446f6b0c6a96cf2190e54bcd5a8569c3e386f091605499464389b8d4e0bfc201 # stx: STEW4ZNT093ZHK4NEQKX8QJGM2Y7WWJ2FQQS5C19, btc: miEJtNKa3ASpA19v5ZhvbKTEieYjLpzCYT, pub_key: 035379aa40c02890d253cfa577964116eb5295570ae9f7287cbae5f2585f5b2c7c, wif: cStMQXkK5yTFGP3KbNXYQ3sJf2qwQiKrZwR9QJnksp32eKzef1za
@@ -9,8 +9,8 @@ x-common-vars:
   - &BITCOIN_RPC_PASS btc
   - &MINE_INTERVAL ${MINE_INTERVAL:-1s}
   - &MINE_INTERVAL_EPOCH25 ${MINE_INTERVAL_EPOCH25:-2s} # 5 second bitcoin block times in epoch 2.5
-  - &MINE_INTERVAL_EPOCH3 ${MINE_INTERVAL_EPOCH3:-3s} # 30 second bitcoin block times in epoch 3
-  - &MINE_INTERVAL_EPOCH35 ${MINE_INTERVAL_EPOCH35:-20s} # 5 second bitcoin block times in epoch 3.5
+  - &MINE_INTERVAL_EPOCH3 ${MINE_INTERVAL_EPOCH3:-2s} # 30 second bitcoin block times in epoch 3
+  - &MINE_INTERVAL_EPOCH35 ${MINE_INTERVAL_EPOCH35:-2s} # 5 second bitcoin block times in epoch 3.5
   - &NAKAMOTO_BLOCK_INTERVAL 2 # seconds to wait between issuing stx-transfer transactions (which triggers Nakamoto block production)
   - &STACKS_20_HEIGHT ${STACKS_20_HEIGHT:-0}
   - &STACKS_2_05_HEIGHT ${STACKS_2_05_HEIGHT:-102}

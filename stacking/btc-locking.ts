@@ -47,9 +47,9 @@ export function calculateUnlockBurnHeight(
   rewardCycleLength: number,
 ): bigint {
   const startCycle = currentCycle + 1;
-  const lastCycle = startCycle + numCycles - 1;
-  const lastCycleStartHeight = (lastCycle - 1) * rewardCycleLength;
-  return BigInt(lastCycleStartHeight + Math.floor(rewardCycleLength / 2));
+  const lastCycle = startCycle + numCycles;
+  const lastCycleStartHeight = (lastCycle * rewardCycleLength) + 1;
+  return BigInt(lastCycleStartHeight) + (BigInt(rewardCycleLength) / 2n);
 }
 
 // -- P2WSH address from lock script --

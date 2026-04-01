@@ -229,6 +229,7 @@ async function run() {
       account.logger.info('Account unlocked, staking...', {
         account: account.index,
         rewardCycle: poxInfo.reward_cycle_id,
+        unlockBurnHeight: unlockBurnHeight.toString(),
       });
 
       const stakeResult = await submitStake(account, poxInfo, unlockBytes);
