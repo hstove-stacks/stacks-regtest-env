@@ -1,17 +1,20 @@
 import * as BTC from '@scure/btc-signer';
 import {
-  Cl,
-  createAddress,
-  encodeStructuredDataBytes,
-  getAddressFromPublicKey,
-  signWithKey,
+    Cl,
+    createAddress,
+    encodeStructuredDataBytes,
+    getAddressFromPublicKey,
+    signWithKey,
 } from '@stacks/transactions';
 import { hex } from '@scure/base';
-import { projectErrors, projectFactory } from '@clarigen/core';
-import { accounts, project } from './clarigen-types.js';
+import { ClarigenClient, contractFactory, projectErrors, TESTNET_BURN_ADDRESS } from '@clarigen/core';
+import { contracts, project } from './clarigen-types.js';
 import { sha256 } from '@noble/hashes/sha2.js';
-import { secp256k1 } from '@noble/curves/secp256k1.js';
-import { pox5 } from './contracts.js';
+import { network } from './common.js';
+
+export const clarigenClient = new ClarigenClient(network);
+
+export const pox5 = contractFactory(contracts.pox5, `${TESTNET_BURN_ADDRESS}.pox-5`);
 
 export const errorCodes = projectErrors(project).pox5;
 

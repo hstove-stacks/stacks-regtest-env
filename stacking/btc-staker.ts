@@ -1,39 +1,35 @@
 import {
-  makeContractCall,
-  broadcastTransaction,
-  bufferCV,
-  uintCV,
-  tupleCV,
-  AnchorMode,
-  createAddress,
-  someCV,
+    makeContractCall,
+    broadcastTransaction,
+    AnchorMode,
+    createAddress
 } from '@stacks/transactions';
 import { hex } from '@scure/base';
-import { Pox4SignatureTopic, PoxInfo } from '@stacks/stacking';
+import { PoxInfo } from '@stacks/stacking';
 import {
-  accounts,
-  maxAmount,
-  parseEnvInt,
-  waitForSetup,
-  logger,
-  burnBlockToRewardCycle,
-  network,
-  POX_REWARD_LENGTH,
-  type Account,
-  EPOCH_35_START,
-  WALLET_NAME,
-  waitForTxConfirmed,
+    accounts,
+    maxAmount,
+    parseEnvInt,
+    waitForSetup,
+    logger,
+    burnBlockToRewardCycle,
+    network,
+    POX_REWARD_LENGTH,
+    type Account,
+    EPOCH_35_START,
+    WALLET_NAME,
+    waitForTxConfirmed,
 } from './common.js';
-import { createOrLoadWallet, getNewAddress, listUnspent, sendToAddress } from './btc-rpc.js';
 import {
-  getUnlockBytes,
-  serializeLockupScript,
-  calculateUnlockBurnHeight,
-  getLockingAddress,
-} from './btc-locking.js';
-import { pox5 } from './contracts.js';
-import { TESTNET_BURN_ADDRESS } from '@clarigen/core';
-import { signSignerKeyGrant } from './pox-5-helpers.js';
+    getUnlockBytes,
+    serializeLockupScript,
+    calculateUnlockBurnHeight,
+    getLockingAddress,
+    createOrLoadWallet,
+    listUnspent,
+    sendToAddress
+} from './btc-helpers.js';
+import { signSignerKeyGrant, pox5 } from './pox-5-helpers.js';
 
 const stakingInterval = parseEnvInt('STACKING_INTERVAL', true);
 const postTxWait = parseEnvInt('POST_TX_WAIT', true);

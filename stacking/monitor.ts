@@ -1,4 +1,4 @@
-import { bitcoinRPC } from './btc-rpc.js';
+import { bitcoinRPC } from './btc-helpers.js';
 import {
   accounts,
   nodeUrl,
