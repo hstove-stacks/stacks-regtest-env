@@ -10,7 +10,7 @@ import { hex } from '@scure/base';
 import { ClarigenClient, contractFactory, projectErrors, TESTNET_BURN_ADDRESS } from '@clarigen/core';
 import { contracts, project } from './clarigen-types.js';
 import { sha256 } from '@noble/hashes/sha2.js';
-import { network } from './common.js';
+import { CHAIN_ID, network } from './common.js';
 
 export const clarigenClient = new ClarigenClient(network);
 
@@ -76,7 +76,7 @@ export function signSignerKeyGrant({
     domain: Cl.tuple({
       name: Cl.stringAscii(pox5.constants.pOX_5_SIGNER_DOMAIN.name),
       version: Cl.stringAscii(pox5.constants.pOX_5_SIGNER_DOMAIN.version),
-      'chain-id': Cl.uint(pox5.constants.pOX_5_SIGNER_DOMAIN.chainId),
+      'chain-id': Cl.uint(CHAIN_ID),
     }),
   });
   const data = signWithKey(signerSk, hex.encode(sha256(fullMessage)));
