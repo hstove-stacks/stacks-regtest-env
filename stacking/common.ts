@@ -1,13 +1,8 @@
 import { StackingClient } from '@stacks/stacking';
 import { STACKS_TESTNET } from '@stacks/network';
-import {
-  getAddressFromPrivateKey,
-} from '@stacks/transactions';
+import { ClarityType, deserializeCV, getAddressFromPrivateKey } from '@stacks/transactions';
 import { getPublicKeyFromPrivate, publicKeyToBtcAddress } from '@stacks/encryption';
-import {
-  createClient,
-} from '@stacks/blockchain-api-client';
-import { Transaction } from '@stacks/stacks-blockchain-api-types';
+import { createClient } from '@stacks/blockchain-api-client';
 import { Logger, pino } from 'pino';
 
 const serviceName = process.env.SERVICE_NAME || 'JS';
@@ -43,7 +38,7 @@ export const apiClient = createClient({
 
 export const EPOCH_30_START = parseEnvInt('STACKS_30_HEIGHT', true);
 export const EPOCH_25_START = parseEnvInt('STACKS_25_HEIGHT', true);
-export const EPOCH_35_START = parseEnvInt('STACKS_35_HEIGHT', true);
+export const EPOCH_40_START = parseEnvInt('STACKS_40_HEIGHT', true);
 export const POX_PREPARE_LENGTH = parseEnvInt('POX_PREPARE_LENGTH', true);
 export const POX_REWARD_LENGTH = parseEnvInt('POX_REWARD_LENGTH', true);
 export const WALLET_NAME = 'btc_staking';
@@ -70,8 +65,31 @@ export const accounts = process.env.STACKING_KEYS!.split(',').map((privKey, inde
       account: stxAddress,
       index: index,
     }),
+    signerManager: `${stxAddress}.signer-manager`,
   };
 });
+
+export async function fetchAccount(stxAddress: string) {
+  const url = `${nodeUrl}/v2/accounts/${stxAddress}?proof=0`;
+  const res = await fetch(url);
+  const data = (await res.json()) as {
+    unlock_height: number;
+    locked: string;
+    balance: string;
+  };
+  logger.info({ data }, 'Account data');
+  const locked = deserializeCV(data.locked.slice(2));
+  const balance = deserializeCV(data.balance.slice(2));
+  if (locked.type !== ClarityType.Int || balance.type !== ClarityType.Int) {
+    logger.error({ locked, balance }, 'Invalid account data');
+    throw new Error('Invalid account data');
+  }
+  return {
+    unlockHeight: data.unlock_height,
+    lockedAmount: BigInt(locked.value),
+    balance: BigInt(balance.value),
+  };
+}
 
 export type Account = typeof accounts[0];
 
@@ -82,7 +100,12 @@ export async function waitForSetup() {
   try {
     await accounts[0]!.client.getPoxInfo();
   } catch (error) {
-    if (error instanceof Error && 'cause' in error && error.cause instanceof Error && /(ECONNREFUSED|ENOTFOUND|SyntaxError)/.test(error.cause.message)) {
+    if (
+      error instanceof Error &&
+      'cause' in error &&
+      error.cause instanceof Error &&
+      /(ECONNREFUSED|ENOTFOUND|SyntaxError)/.test(error.cause.message)
+    ) {
       console.log(`Stacks node not ready, waiting...`);
     }
     await new Promise(resolve => setTimeout(resolve, 3000));

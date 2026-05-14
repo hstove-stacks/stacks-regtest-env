@@ -1,39 +1,40 @@
 import {
-    makeContractCall,
-    broadcastTransaction,
-    AnchorMode,
-    createAddress
+  makeContractCall,
+  broadcastTransaction,
+  AnchorMode,
+  makeContractDeploy,
 } from '@stacks/transactions';
 import { hex } from '@scure/base';
 import { PoxInfo } from '@stacks/stacking';
 import {
-    accounts,
-    maxAmount,
-    parseEnvInt,
-    waitForSetup,
-    logger,
-    burnBlockToRewardCycle,
-    network,
-    POX_REWARD_LENGTH,
-    type Account,
-    EPOCH_35_START,
-    WALLET_NAME,
-    waitForTxConfirmed,
+  accounts,
+  parseEnvInt,
+  waitForSetup,
+  logger,
+  burnBlockToRewardCycle,
+  network,
+  POX_REWARD_LENGTH,
+  type Account,
+  EPOCH_40_START,
+  WALLET_NAME,
+  waitForTxConfirmed,
+  EPOCH_30_START,
+  fetchAccount,
 } from './common.js';
 import {
-    getUnlockBytes,
-    serializeLockupScript,
-    calculateUnlockBurnHeight,
-    getLockingAddress,
-    createOrLoadWallet,
-    listUnspent,
-    sendToAddress
+  getUnlockBytes,
+  serializeLockupScript,
+  calculateUnlockBurnHeight,
+  getLockingAddress,
+  createOrLoadWallet,
+  listUnspent,
+  sendToAddress,
 } from './btc-helpers.js';
-import { signSignerKeyGrant, pox5 } from './pox-5-helpers.js';
+import { signSignerKeyGrant, pox5, pox5Signer } from './pox-5-helpers.js';
+import { readFile } from 'node:fs/promises';
 
 const stakingInterval = parseEnvInt('STACKING_INTERVAL', true);
-const postTxWait = parseEnvInt('POST_TX_WAIT', true);
-const stakingCycles = parseEnvInt('STACKING_CYCLES', true);
+const stakingCyclesPox5 = parseEnvInt('STACKING_CYCLES_POX_5', true);
 const lockAmountSats = BigInt(parseEnvInt('BTC_LOCK_AMOUNT_SATS', false) ?? 10_000_000);
 
 let txFee = parseEnvInt('STACKING_FEE', false) ?? 1_000_000;
@@ -58,58 +59,15 @@ async function initBtcWallet() {
   }
 }
 
-async function submitSignerKeyGrant(account: Account) {
-  const authId = 1n;
-  const signature = signSignerKeyGrant({
-    staker: account.stxAddress,
-    poxAddr: null,
-    authId,
-    signerSk: hex.decode(account.signerPrivKey),
-  });
-
-  const tx = await makeContractCall({
-    ...pox5.grantSignerKey({
-      signerKey: hex.decode(account.signerPubKey),
-      staker: account.stxAddress,
-      poxAddr: null,
-      authId,
-      signerSig: signature,
-    }),
-    senderKey: account.privKey,
-    network,
-  })
-  const result = await broadcastTransaction({
-    transaction: tx,
-    network,
-  });
-  account.logger.info({ ...result }, 'L2 signer key grant tx broadcast');
-  return result;
-}
-
 // -- L2: Stacks contract calls --
 
-async function submitStake(
-  account: Account,
-  poxInfo: PoxInfo,
-  unlockBytes: Uint8Array,
-) {
-  const authId = Math.floor(Math.random() * 0xffffffffffff);
-
-  const poxAddr = createAddress(account.stxAddress);
-
+async function submitStake(account: Account, poxInfo: PoxInfo) {
   const stakeFnCall = pox5.stake({
-    amountUstx: 1000_000000n,
-    poxAddr: {
-      version: new Uint8Array([1]),
-      hashbytes: hex.decode(poxAddr.hash160),
-    },
     startBurnHt: poxInfo.current_burnchain_block_height!,
-    signerSig: null,
-    signerKey: hex.decode(account.signerPubKey),
-    maxAmount,
-    authId,
-    numCycles: stakingCycles,
-    unlockBytes: unlockBytes,
+    amountUstx: 1000_000000n,
+    numCycles: stakingCyclesPox5,
+    signerManager: account.signerManager,
+    signerCalldata: null,
   });
 
   const tx = await makeContractCall({
@@ -122,28 +80,27 @@ async function submitStake(
     transaction: tx,
     network,
   });
-  account.logger.info({ ...result }, 'L2 stake tx broadcast');
+  if ('reason' in result) {
+    account.logger.error(
+      {
+        ...result,
+      },
+      `Error staking: ${result.reason}`
+    );
+    throw new Error(`Error staking: ${result.reason}`);
+  }
+  account.logger.info({ ...result }, 'stake tx broadcast');
   return result;
 }
 
-async function submitStakeExtend(account: Account, poxInfo: any, unlockBytes: Uint8Array) {
-  const authId = Math.floor(Math.random() * 0xffffffffffff);
-
-  const poxAddr = createAddress(account.stxAddress);
-
+async function submitStakeExtend(account: Account) {
   const txOptions = {
-    ...pox5.stakeExtend({
-      amountUstx: 1000_000000n,
-      poxAddr: {
-        version: new Uint8Array([1]),
-        hashbytes: hex.decode(poxAddr.hash160),
-      },
-      signerSig: null,
-      signerKey: hex.decode(account.signerPubKey),
-      maxAmount,
-      authId,
-      numCycles: stakingCycles,
-      unlockBytes,
+    ...pox5.stakeUpdate({
+      amountIncrease: 0n,
+      cyclesToExtend: stakingCyclesPox5,
+      signerManager: account.signerManager,
+      oldSignerManager: account.signerManager,
+      signerCalldata: null,
     }),
     senderKey: account.privKey,
     network,
@@ -173,19 +130,26 @@ async function submitBtcLock(account: Account, unlockBurnHeight: bigint, unlockB
   const amountBtc = Number(lockAmountSats) / 1e8;
 
   const txid = await sendToAddress(WALLET_NAME, address, amountBtc);
-  account.logger.info({ txid, address, amountBtc, unlockBurnHeight: unlockBurnHeight.toString() }, 'L1 BTC lock tx broadcast');
+  account.logger.info(
+    { txid, address, amountBtc, unlockBurnHeight: unlockBurnHeight.toString() },
+    'L1 BTC lock tx broadcast'
+  );
   return txid;
 }
 
 // -- Main loop --
 
-let lastStakedCycle = 0;
-
-let hasGrantedSignerKey = false;
+const grantedSignerKeys = new Set<string>();
+let hasDeployedSBTC = false;
 
 async function run() {
   const poxInfo = await accounts[0]!.client.getPoxInfo();
-  if (poxInfo.current_burnchain_block_height! <= EPOCH_35_START) {
+
+  if (poxInfo.current_burnchain_block_height! > EPOCH_30_START + 1 && !hasDeployedSBTC) {
+    await deploySBTC(accounts[0]!);
+    hasDeployedSBTC = true;
+  }
+  if (poxInfo.current_burnchain_block_height! < EPOCH_40_START) {
     // logger.info({ burnHeight: poxInfo.current_burnchain_block_height }, 'Not on epoch 3.5 yet, skipping');
     return;
   }
@@ -194,14 +158,10 @@ async function run() {
 
   const accountInfos = await Promise.all(
     accounts.map(async a => {
-      const info = await a.client.getAccountStatus();
-      return {
-        ...a,
-        unlockHeight: Number(info.unlock_height),
-        lockedAmount: BigInt(info.locked),
-        balance: BigInt(info.balance),
-      };
-    }),
+      a.logger.info({ address: a.stxAddress }, 'Getting account status');
+      const info = await fetchAccount(a.stxAddress);
+      return { ...a, ...info };
+    })
   );
 
   const nowCycle = burnBlockToRewardCycle(poxInfo.current_burnchain_block_height ?? 0);
@@ -210,15 +170,62 @@ async function run() {
 
   for (const account of accountInfos) {
     const unlockBytes = getUnlockBytes(account.pubKey);
-    const unlockBurnHeight = calculateUnlockBurnHeight(currentCycle, stakingCycles, POX_REWARD_LENGTH);
+    const unlockBurnHeight = calculateUnlockBurnHeight(
+      currentCycle,
+      stakingCyclesPox5,
+      POX_REWARD_LENGTH
+    );
 
-    if (!hasGrantedSignerKey) {
-      const txResult = await submitSignerKeyGrant(account);
-      if ('error' in txResult) {
-        logger.error({ ...txResult }, 'Error granting signer key');
-        continue;
+    if (!grantedSignerKeys.has(account.signerManager)) {
+      const authId = 2n;
+      const signature = signSignerKeyGrant({
+        signerManager: account.signerManager,
+        authId,
+        signerSk: hex.decode(account.signerPrivKey),
+      });
+
+      const signerManager = await readFile('./contracts/pox-5-signer.clar', 'utf8');
+      const deployTx = await makeContractDeploy({
+        senderKey: account.privKey,
+        network,
+        contractName: 'signer-manager',
+        codeBody: signerManager
+          .replaceAll(' .pox-5', ` '${pox5.identifier}`)
+          .replaceAll(
+            'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4',
+            'ST3NBRSFKX28FQ2ZJ1MAKX58HKHSDGNV5N7R21XCP'
+          ),
+      });
+      const deployResult = await broadcastTransaction({
+        transaction: deployTx,
+        network,
+      });
+      const exists = 'reason' in deployResult && deployResult.reason === 'ContractAlreadyExists';
+      if (!exists) {
+        if ('reason' in deployResult) {
+          throw new Error(`Error deploying signer manager: ${deployResult.reason}`);
+        }
+        account.logger.info({ ...deployResult }, 'Deployed signer manager');
+        await waitForTxConfirmed(deployResult.txid);
       }
-      await waitForTxConfirmed(txResult.txid);
+
+      const registerSelf = await makeContractCall({
+        ...pox5Signer(account.signerManager).registerSelf({
+          signerManager: account.signerManager,
+          signerKey: hex.decode(account.signerPubKey),
+          authId,
+          signerSig: signature,
+        }),
+        senderKey: account.privKey,
+        network,
+      });
+      const registerSelfResult = await broadcastTransaction({
+        transaction: registerSelf,
+        network,
+      });
+      account.logger.info({ ...registerSelfResult }, 'Registered self');
+      await waitForTxConfirmed(registerSelfResult.txid);
+      grantedSignerKeys.add(account.signerManager);
     }
 
     if (account.lockedAmount === 0n) {
@@ -228,9 +235,8 @@ async function run() {
         unlockBurnHeight: unlockBurnHeight.toString(),
       });
 
-      const stakeResult = await submitStake(account, poxInfo, unlockBytes);
+      const stakeResult = await submitStake(account, poxInfo);
       txIdsToWait.push(stakeResult.txid);
-      // await new Promise(r => setTimeout(r, postTxWait * 1000));
 
       await submitBtcLock(account, unlockBurnHeight, unlockBytes);
       continue;
@@ -239,11 +245,13 @@ async function run() {
     const unlockCycle = burnBlockToRewardCycle(account.unlockHeight);
 
     if (unlockCycle === nowCycle) {
-      account.logger.info({ unlockHeight: account.unlockHeight, nowCycle, unlockCycle }, 'Extending stake...');
+      account.logger.info(
+        { unlockHeight: account.unlockHeight, nowCycle, unlockCycle },
+        'Extending stake...'
+      );
 
-      const stakeExtendResult = await submitStakeExtend(account, poxInfo, unlockBytes);
+      const stakeExtendResult = await submitStakeExtend(account);
       txIdsToWait.push(stakeExtendResult.txid);
-      // await new Promise(r => setTimeout(r, postTxWait * 1000));
 
       await submitBtcLock(account, unlockBurnHeight, unlockBytes);
       continue;
@@ -252,8 +260,47 @@ async function run() {
     account.logger.info({ nowCycle, unlockCycle }, 'Staked through next cycle, skipping');
   }
   await Promise.all(txIdsToWait.map(waitForTxConfirmed));
-  lastStakedCycle = nowCycle;
-  hasGrantedSignerKey = true;
+}
+
+async function deploySBTC(account: Account) {
+  const registry = await readFile(
+    '.cache/requirements/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-registry.clar',
+    'utf8'
+  );
+  const token = await readFile(
+    '.cache/requirements/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token.clar',
+    'utf8'
+  );
+  const withdrawal = await readFile(
+    '.cache/requirements/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal.clar',
+    'utf8'
+  );
+
+  async function deployContract(contract: string, name: string) {
+    const deployTx = await makeContractDeploy({
+      senderKey: accounts[0]!.privKey,
+      network,
+      contractName: name,
+      codeBody: contract,
+      clarityVersion: 3,
+    });
+    const deployResult = await broadcastTransaction({
+      transaction: deployTx,
+      network,
+    });
+    if ('reason' in deployResult) {
+      if (deployResult.reason === 'ContractAlreadyExists') {
+        return;
+      }
+      throw new Error(`Error deploying sbtc contract: ${deployResult.reason}`);
+    }
+    account.logger.info({ ...deployResult, contractName: name }, 'Deployed sbtc contract');
+    await waitForTxConfirmed(deployResult.txid);
+  }
+
+  await deployContract(registry, 'sbtc-registry');
+  await deployContract(token, 'sbtc-token');
+  await deployContract(withdrawal, 'sbtc-withdrawal');
 }
 
 async function loop() {

@@ -1,20 +1,27 @@
 import * as BTC from '@scure/btc-signer';
 import {
-    Cl,
-    createAddress,
-    encodeStructuredDataBytes,
-    getAddressFromPublicKey,
-    signWithKey,
+  Cl,
+  createAddress,
+  encodeStructuredDataBytes,
+  getAddressFromPublicKey,
+  signWithKey,
 } from '@stacks/transactions';
 import { hex } from '@scure/base';
-import { ClarigenClient, contractFactory, projectErrors, TESTNET_BURN_ADDRESS } from '@clarigen/core';
+import {
+  ClarigenClient,
+  contractFactory,
+  projectErrors,
+  TESTNET_BURN_ADDRESS,
+} from '@clarigen/core';
 import { contracts, project } from './clarigen-types.js';
 import { sha256 } from '@noble/hashes/sha2.js';
-import { CHAIN_ID, network } from './common.js';
+import { network } from './common.js';
 
 export const clarigenClient = new ClarigenClient(network);
 
 export const pox5 = contractFactory(contracts.pox5, `${TESTNET_BURN_ADDRESS}.pox-5`);
+export const pox5Signer = (contractAddress: string) =>
+  contractFactory(contracts.pox5Signer, contractAddress);
 
 export const errorCodes = projectErrors(project).pox5;
 
@@ -23,7 +30,7 @@ export function toWitnessOutput(script: Uint8Array) {
     BTC.p2wsh({
       type: 'wsh',
       script,
-    }),
+    })
   );
 }
 
@@ -48,27 +55,17 @@ export function serializeLockupScript({
 }
 
 export function signSignerKeyGrant({
-  staker,
-  poxAddr,
+  signerManager,
   authId,
   signerSk,
 }: {
-  staker: string;
-  poxAddr: { version: Uint8Array; hashbytes: Uint8Array } | null;
+  signerManager: string;
   authId: bigint;
   signerSk: Uint8Array;
 }) {
   const message = Cl.tuple({
-    staker: Cl.principal(staker),
+    'signer-manager': Cl.principal(signerManager),
     topic: Cl.stringAscii('grant-authorization'),
-    'pox-addr': poxAddr
-      ? Cl.some(
-          Cl.tuple({
-            version: Cl.buffer(poxAddr.version),
-            hashbytes: Cl.buffer(poxAddr.hashbytes),
-          }),
-        )
-      : Cl.none(),
     'auth-id': Cl.uint(authId),
   });
   const fullMessage = encodeStructuredDataBytes({
@@ -76,7 +73,7 @@ export function signSignerKeyGrant({
     domain: Cl.tuple({
       name: Cl.stringAscii(pox5.constants.pOX_5_SIGNER_DOMAIN.name),
       version: Cl.stringAscii(pox5.constants.pOX_5_SIGNER_DOMAIN.version),
-      'chain-id': Cl.uint(CHAIN_ID),
+      'chain-id': Cl.uint(pox5.constants.pOX_5_SIGNER_DOMAIN.chainId),
     }),
   });
   const data = signWithKey(signerSk, hex.encode(sha256(fullMessage)));
