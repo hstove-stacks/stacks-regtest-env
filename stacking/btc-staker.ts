@@ -30,7 +30,7 @@ import {
   listUnspent,
   sendToAddress,
 } from './btc-helpers.js';
-import { signSignerKeyGrant, pox5, pox5Signer } from './pox-5-helpers.js';
+import { signSignerKeyGrant, pox5, pox5Signer, clarigenClient } from './pox-5-helpers.js';
 import { readFile } from 'node:fs/promises';
 
 const stakingInterval = parseEnvInt('STACKING_INTERVAL', true);
@@ -64,7 +64,7 @@ async function initBtcWallet() {
 async function submitStake(account: Account, poxInfo: PoxInfo) {
   const stakeFnCall = pox5.stake({
     startBurnHt: poxInfo.current_burnchain_block_height!,
-    amountUstx: 1000_000000n,
+    amountUstx: 100_000_000000n,
     numCycles: stakingCyclesPox5,
     signerManager: account.signerManager,
     signerCalldata: null,
@@ -75,6 +75,7 @@ async function submitStake(account: Account, poxInfo: PoxInfo) {
     senderKey: account.privKey,
     network,
     fee: getNextTxFee(),
+    nonce: (await fetchAccount(account.stxAddress)).nonce,
   });
   const result = await broadcastTransaction({
     transaction: tx,
@@ -113,6 +114,10 @@ async function submitStakeExtend(account: Account) {
     transaction: tx,
     network,
   });
+  if ('reason' in result) {
+    account.logger.error({ ...result }, `Error extending stake: ${result.reason}`);
+    throw new Error(`Error extending stake: ${result.reason}`);
+  }
   account.logger.info({ txid: result.txid }, 'L2 stake-extend tx broadcast');
   return result;
 }
@@ -158,7 +163,6 @@ async function run() {
 
   const accountInfos = await Promise.all(
     accounts.map(async a => {
-      a.logger.info({ address: a.stxAddress }, 'Getting account status');
       const info = await fetchAccount(a.stxAddress);
       return { ...a, ...info };
     })
@@ -209,22 +213,30 @@ async function run() {
         await waitForTxConfirmed(deployResult.txid);
       }
 
-      const registerSelf = await makeContractCall({
-        ...pox5Signer(account.signerManager).registerSelf({
-          signerManager: account.signerManager,
-          signerKey: hex.decode(account.signerPubKey),
-          authId,
-          signerSig: signature,
-        }),
-        senderKey: account.privKey,
-        network,
-      });
-      const registerSelfResult = await broadcastTransaction({
-        transaction: registerSelf,
-        network,
-      });
-      account.logger.info({ ...registerSelfResult }, 'Registered self');
-      await waitForTxConfirmed(registerSelfResult.txid);
+      const signerKey = await clarigenClient.ro(pox5.getSignerInfo(account.signerManager));
+
+      if (!signerKey) {
+        const registerSelf = await makeContractCall({
+          ...pox5Signer(account.signerManager).registerSelf({
+            signerManager: account.signerManager,
+            signerKey: hex.decode(account.signerPubKey),
+            authId,
+            signerSig: signature,
+          }),
+          nonce: (await fetchAccount(account.stxAddress)).nonce,
+          senderKey: account.privKey,
+          network,
+        });
+        const registerSelfResult = await broadcastTransaction({
+          transaction: registerSelf,
+          network,
+        });
+        if ('reason' in registerSelfResult) {
+          throw new Error(`Error registering signer manager: ${registerSelfResult.reason}`);
+        }
+        account.logger.info({ ...registerSelfResult }, 'Registered self');
+        await waitForTxConfirmed(registerSelfResult.txid);
+      }
       grantedSignerKeys.add(account.signerManager);
     }
 
@@ -257,22 +269,22 @@ async function run() {
       continue;
     }
 
-    account.logger.info({ nowCycle, unlockCycle }, 'Staked through next cycle, skipping');
+    // account.logger.info({ nowCycle, unlockCycle }, 'Staked through next cycle, skipping');
   }
   await Promise.all(txIdsToWait.map(waitForTxConfirmed));
 }
 
 async function deploySBTC(account: Account) {
   const registry = await readFile(
-    '.cache/requirements/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-registry.clar',
+    'contracts/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-registry.clar',
     'utf8'
   );
   const token = await readFile(
-    '.cache/requirements/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token.clar',
+    'contracts/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token.clar',
     'utf8'
   );
   const withdrawal = await readFile(
-    '.cache/requirements/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal.clar',
+    'contracts/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal.clar',
     'utf8'
   );
 

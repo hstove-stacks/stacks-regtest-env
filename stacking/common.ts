@@ -76,8 +76,8 @@ export async function fetchAccount(stxAddress: string) {
     unlock_height: number;
     locked: string;
     balance: string;
+    nonce: number;
   };
-  logger.info({ data }, 'Account data');
   const locked = deserializeCV(data.locked.slice(2));
   const balance = deserializeCV(data.balance.slice(2));
   if (locked.type !== ClarityType.Int || balance.type !== ClarityType.Int) {
@@ -88,6 +88,7 @@ export async function fetchAccount(stxAddress: string) {
     unlockHeight: data.unlock_height,
     lockedAmount: BigInt(locked.value),
     balance: BigInt(balance.value),
+    nonce: data.nonce,
   };
 }
 
@@ -146,7 +147,9 @@ export function didCrossPreparePhase(lastBurnHeight: number, newBurnHeight: numb
 }
 
 export async function waitForTxConfirmed(txid: string) {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+    const timeoutMs = 120_000;
     const interval = setInterval(async () => {
       const { data: tx, ...rest } = await apiClient.GET(`/extended/v1/tx/{tx_id}`, {
         params: {
@@ -156,12 +159,20 @@ export async function waitForTxConfirmed(txid: string) {
         },
       });
       if (!tx) {
+        if (Date.now() - startedAt > timeoutMs) {
+          clearInterval(interval);
+          reject(new Error(`Timed out waiting for tx ${txid}`));
+          return;
+        }
         logger.warn({ ...rest }, 'Waiting for tx to be confirmed');
         return;
       }
       if (tx.tx_status !== 'pending') {
         if (tx.tx_status !== 'success') {
           logger.error({ ...tx }, 'Tx failed');
+          clearInterval(interval);
+          reject(new Error(`Tx ${txid} failed with status ${tx.tx_status}`));
+          return;
         }
         clearInterval(interval);
         resolve(tx);

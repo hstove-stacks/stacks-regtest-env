@@ -8,7 +8,8 @@ RUN npm i
 
 COPY ./stacking/deployments/*.yaml /root/deployments/
 COPY ./stacking/contracts/*.clar /root/contracts/
-COPY ./stacking/.cache/requirements/*.clar /root/.cache/requirements/
 COPY ./stacking/*.ts /root/
 
-CMD ["npx", "tsx", "/root/stacking.ts"]
+ENV NODE_OPTIONS=--enable-source-maps
+
+CMD ["./node_modules/.bin/tsx", "/root/stacking.ts"]

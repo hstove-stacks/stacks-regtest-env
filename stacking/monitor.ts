@@ -110,8 +110,8 @@ async function loop() {
     let showPrepareMsg = false;
     let showCycleMsg = false;
     let showStxBlockMsg = false;
-    let burnHeightDate = new Date(blockInfo?.burn_block_time ?? 0 * 1000);
-    let burnHeightTimeAgo = (new Date().getTime() - burnHeightDate.getTime()) / 1000;
+    const burnBlockTimeMs = (blockInfo?.burn_block_time ?? 0) * 1000;
+    const burnHeightTimeAgo = (Date.now() - burnBlockTimeMs) / 1000;
     const loopLog = logger.child({
       height,
       burnHeight: current_burnchain_block_height,

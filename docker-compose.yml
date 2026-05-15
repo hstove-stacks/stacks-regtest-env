@@ -1,5 +1,5 @@
 x-common-vars:
-  - &STACKS_BLOCKCHAIN_COMMIT 01550f7de9a42102ac7049e8708d00de5eca7aa2 # feat/epoch-4-rc
+  - &STACKS_BLOCKCHAIN_COMMIT 27877974d3c9a0daea20ec7204cb8d7e7aa95e83 # feat/epoch-4-rc
   - &STACKS_API_COMMIT fc47a7cd054018d8ea098fbb3c8db207dbf7c8c9 # 9.0.0-pox5.1
   - &BITCOIN_ADDRESSES miEJtNKa3ASpA19v5ZhvbKTEieYjLpzCYT
   - &MINER_SEED 9e446f6b0c6a96cf2190e54bcd5a8569c3e386f091605499464389b8d4e0bfc201 # stx: STEW4ZNT093ZHK4NEQKX8QJGM2Y7WWJ2FQQS5C19, btc: miEJtNKa3ASpA19v5ZhvbKTEieYjLpzCYT, pub_key: 035379aa40c02890d253cfa577964116eb5295570ae9f7287cbae5f2585f5b2c7c, wif: cStMQXkK5yTFGP3KbNXYQ3sJf2qwQiKrZwR9QJnksp32eKzef1za
@@ -9,8 +9,8 @@ x-common-vars:
   - &BITCOIN_RPC_PASS btc
   - &MINE_INTERVAL ${MINE_INTERVAL:-1s}
   - &MINE_INTERVAL_EPOCH25 ${MINE_INTERVAL_EPOCH25:-2s} # bitcoin block times in epoch 2.5
-  - &MINE_INTERVAL_EPOCH3 ${MINE_INTERVAL_EPOCH3:-2s} # bitcoin block times in epoch 3
-  - &MINE_INTERVAL_EPOCH40 ${MINE_INTERVAL_EPOCH40:-60s} # bitcoin block times in epoch 4
+  - &MINE_INTERVAL_EPOCH3 ${MINE_INTERVAL_EPOCH3:-1s} # bitcoin block times in epoch 3
+  - &MINE_INTERVAL_EPOCH40 ${MINE_INTERVAL_EPOCH40:-2s} # bitcoin block times in epoch 4
   - &NAKAMOTO_BLOCK_INTERVAL 2 # seconds to wait between issuing stx-transfer transactions (which triggers Nakamoto block production)
   - &STACKS_20_HEIGHT ${STACKS_20_HEIGHT:-0}
   - &STACKS_2_05_HEIGHT ${STACKS_2_05_HEIGHT:-102}
@@ -326,6 +326,7 @@ services:
       STACKING_INTERVAL: 2 # interval (seconds) for checking if stacking transactions are needed
       POST_TX_WAIT: 10 # seconds to wait after a stacking transaction broadcast before continuing the loop
       SERVICE_NAME: stacker
+      NODE_OPTIONS: --enable-source-maps
     depends_on:
       - stacks-node
 
@@ -350,6 +351,7 @@ services:
       STACKING_INTERVAL: 2
       POST_TX_WAIT: 10
       SERVICE_NAME: btc-staker
+      NODE_OPTIONS: --enable-source-maps
       BITCOIN_RPC_HOST: bitcoind
       BITCOIN_RPC_PORT: *BITCOIN_RPC_PORT
       BITCOIN_RPC_USER: *BITCOIN_RPC_USER
@@ -363,7 +365,7 @@ services:
       - -c
       - |
         set -e
-        exec npx tsx /root/btc-staker.ts
+        exec ./node_modules/.bin/tsx /root/btc-staker.ts
 
   monitor:
     networks:
@@ -385,6 +387,7 @@ services:
       EXIT_FROM_MONITOR: *EXIT_FROM_MONITOR
       STACKS_CHAIN_ID: *STACKS_CHAIN_ID
       SERVICE_NAME: monitor
+      NODE_OPTIONS: --enable-source-maps
     depends_on:
       - stacks-node
     entrypoint:
@@ -392,7 +395,7 @@ services:
       - -c
       - |
         set -e
-        exec npx tsx /root/monitor.ts
+        exec ./node_modules/.bin/tsx /root/monitor.ts
 
   tx-broadcaster:
     networks:
@@ -412,6 +415,7 @@ services:
       POX_REWARD_LENGTH: *POX_REWARD_LENGTH
       STACKS_CHAIN_ID: *STACKS_CHAIN_ID
       STACKING_KEYS: 6a1a754ba863d7bab14adbbc3f8ebb090af9e871ace621d3e5ab634e1422885e01,b463f0df6c05d2f156393eee73f8016c5372caa0e9e29a901bb7171d90dc4f1401,7036b29cb5e235e5fd9b09ae3e8eec4404e44906814d5d01cbca968a60ed4bfb01
+      NODE_OPTIONS: --enable-source-maps
     depends_on:
       - stacks-node
     entrypoint:
@@ -419,7 +423,7 @@ services:
       - -c
       - |
         set -e
-        exec npx tsx /root/tx-broadcaster.ts
+        exec ./node_modules/.bin/tsx /root/tx-broadcaster.ts
 
   postgres:
     networks:
