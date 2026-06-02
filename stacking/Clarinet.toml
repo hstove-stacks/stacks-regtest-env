@@ -10,13 +10,13 @@ costs_version = 1
 
 [contracts.pox-5]
 path = "./contracts/pox-5.clar"
-clarity_version = 4
-epoch = 3.3
+clarity_version = 6
+epoch = 4.0
 
 [contracts.pox-5-signer]
 path = "./contracts/pox-5-signer.clar"
-clarity_version = 4
-epoch = 3.3
+clarity_version = 6
+epoch = 4.0
 
 [repl.analysis.lints]
 unused_const = "warn"

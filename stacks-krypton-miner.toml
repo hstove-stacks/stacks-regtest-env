@@ -19,6 +19,8 @@ microblock_frequency = 1000
 # mine_microblocks = true
 # max_microblocks = 10
 pox_5_sbtc_contract = "ST3NBRSFKX28FQ2ZJ1MAKX58HKHSDGNV5N7R21XCP.sbtc-token"
+pox_5_sbtc_registry_contract = "ST3NBRSFKX28FQ2ZJ1MAKX58HKHSDGNV5N7R21XCP.sbtc-registry"
+pox_5_bond_admin = "ST3NBRSFKX28FQ2ZJ1MAKX58HKHSDGNV5N7R21XCP"
 
 [miner]
 first_attempt_time_ms = 180_000

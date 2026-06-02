@@ -14,7 +14,7 @@
 (define-data-var last-withdrawal-request-id uint u0)
 (define-data-var current-signature-threshold uint u0)
 (define-data-var current-signer-set (list 128 (buff 33)) (list))
-(define-data-var current-aggregate-pubkey (buff 33) 0x00)
+(define-data-var current-aggregate-pubkey (buff 33) 0x02158613a973bb4469dc9713e0a330a30b6cb88580b772658990a0b052149ca42a)
 (define-data-var current-signer-principal principal tx-sender)
 
 ;; Maps
