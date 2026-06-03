@@ -256,7 +256,7 @@ async function run() {
 
     const unlockCycle = burnBlockToRewardCycle(account.unlockHeight);
 
-    if (unlockCycle === nowCycle) {
+    if (unlockCycle === nowCycle + 1) {
       account.logger.info(
         { unlockHeight: account.unlockHeight, nowCycle, unlockCycle },
         'Extending stake...'
