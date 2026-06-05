@@ -20,7 +20,8 @@ microblock_frequency = 1000
 # max_microblocks = 10
 pox_5_sbtc_contract = "ST3NBRSFKX28FQ2ZJ1MAKX58HKHSDGNV5N7R21XCP.sbtc-token"
 pox_5_sbtc_registry_contract = "ST3NBRSFKX28FQ2ZJ1MAKX58HKHSDGNV5N7R21XCP.sbtc-registry"
-pox_5_bond_admin = "ST3NBRSFKX28FQ2ZJ1MAKX58HKHSDGNV5N7R21XCP"
+# Shared bond admin account
+pox_5_bond_admin = "ST1V2ASRWGR81W7GBN1Z4W2JQKXJWCADPVZG30X45"
 
 [miner]
 first_attempt_time_ms = 180_000
@@ -206,3 +207,7 @@ address = "STT8DSJTWAW9TVJ1B17SD3S6F7SYH4TXG7TWS7Q9"
 amount = 10000000000000000
 # privateKey = 16226f674796712dfbd53bf402304579b8b6d04d4bed4d466bf84ce6db973d4401
 # mnemonic = "essay grief twin tube concert idea prosper good alarm goddess shell glare hurt belt endless patch lumber wrap labor body erupt brown style test"
+
+[[ustx_balance]]
+address = "ST1V2ASRWGR81W7GBN1Z4W2JQKXJWCADPVZG30X45"
+amount = 10000000000000000
