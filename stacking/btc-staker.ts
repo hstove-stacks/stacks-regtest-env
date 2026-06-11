@@ -27,11 +27,14 @@ import {
   calculateUnlockBurnHeight,
   getLockingAddress,
   createOrLoadWallet,
+  bitcoinRPC,
+  getRawTransaction,
   listUnspent,
   sendToAddress,
 } from './btc-helpers.js';
 import { signSignerKeyGrant, pox5, pox5Signer, clarigenClient } from './pox-5-helpers.js';
 import { readFile } from 'node:fs/promises';
+import { buildSbtcDepositAddress, REGTEST, SbtcApiClientDevenv } from 'sbtc';
 
 const stakingInterval = parseEnvInt('STACKING_INTERVAL', true);
 const stakingCyclesPox5 = parseEnvInt('STACKING_CYCLES_POX_5', true);
@@ -40,6 +43,15 @@ const sbtcDeployerAddress = process.env.SBTC_DEPLOYER_ADDRESS!;
 
 let txFee = parseEnvInt('STACKING_FEE', false) ?? 1_000_000;
 const getNextTxFee = () => txFee++;
+
+type BitcoinTxVerbose = {
+  vout: Array<{
+    n: number;
+    scriptPubKey: {
+      address?: string;
+    };
+  }>;
+};
 
 // -- Initialization --
 
@@ -146,6 +158,7 @@ async function submitBtcLock(account: Account, unlockBurnHeight: bigint, unlockB
 // -- Main loop --
 
 const grantedSignerKeys = new Set<string>();
+const depositedSBTC = new Set<string>();
 let hasDeployedSBTC = false;
 
 async function run() {
@@ -242,6 +255,11 @@ async function run() {
       grantedSignerKeys.add(account.signerManager);
     }
 
+    if (!depositedSBTC.has(account.stxAddress)) {
+      await depositSBTC(account);
+      depositedSBTC.add(account.stxAddress);
+    }
+
     if (account.lockedAmount === 0n) {
       account.logger.info('Account unlocked, staking...', {
         account: account.index,
@@ -274,6 +292,52 @@ async function run() {
     // account.logger.info({ nowCycle, unlockCycle }, 'Staked through next cycle, skipping');
   }
   await Promise.all(txIdsToWait.map(waitForTxConfirmed));
+}
+
+async function depositSBTC(account: Account) {
+  console.log('Depositing sBTC for account:', account.stxAddress);
+  const client = new SbtcApiClientDevenv({
+    sbtcContract: sbtcDeployerAddress,
+    btcApiUrl: 'http://bitcoind:18443',
+    stxApiUrl: 'http://stacks-api:3999',
+    sbtcApiUrl: 'http://emily-server:3031',
+  });
+  // 1. Build the sBTC deposit address
+  const deposit = buildSbtcDepositAddress({
+    stacksAddress: account.stxAddress, // the address to send/mint the sBTC to
+    signersPublicKey: await client.fetchSignersPublicKey(), // the aggregated public key of the signers
+    reclaimLockTime: 950, // default locktime for reclaiming failed deposits
+    reclaimPublicKey: account.pubKey.slice(0, 64), // public key for reclaiming failed deposits
+    network: REGTEST,
+    maxSignerFee: 1000, // max fee the signers can charge for processing the subsequent sweep tx
+  });
+
+  // console.log('Deposit Script:', deposit.depositScript);
+  // console.log('Reclaim Script:', deposit.reclaimScript);
+  // console.log('P2TR Output:', deposit.trOut);
+  console.log('Deposit Address:', { address: deposit.address, account: account.stxAddress });
+
+  const txid = await sendToAddress(WALLET_NAME, deposit.address, 0.1);
+  console.log('Sent BTC to deposit address:', {
+    txid: txid,
+    address: deposit.address,
+    account: account.stxAddress,
+  });
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  const transaction = await getRawTransaction(txid);
+  if (!/^[0-9a-f]+$/i.test(transaction)) {
+    throw new Error(`Expected raw transaction hex for ${txid}, got: ${transaction.slice(0, 80)}`);
+  }
+  const transactionInfo = await bitcoinRPC<BitcoinTxVerbose>('getrawtransaction', [txid, true]);
+  const vout = transactionInfo.vout.find(
+    output => output.scriptPubKey.address === deposit.address
+  )?.n;
+  if (vout === undefined) {
+    throw new Error(`Could not find deposit output for ${deposit.address} in ${txid}`);
+  }
+  console.log('Transaction:', { transaction, vout });
+  const notifyResult = await client.notifySbtc({ ...deposit, transaction, vout });
+  console.log('Notified sbtc:', { notifyResult, txid });
 }
 
 async function deploySBTC(account: Account) {
