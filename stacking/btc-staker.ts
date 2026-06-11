@@ -35,6 +35,7 @@ import {
 import { signSignerKeyGrant, pox5, pox5Signer, clarigenClient } from './pox-5-helpers.js';
 import { readFile } from 'node:fs/promises';
 import { buildSbtcDepositAddress, REGTEST, SbtcApiClientDevenv } from 'sbtc';
+import { p2tr, TEST_NETWORK } from '@scure/btc-signer';
 
 const stakingInterval = parseEnvInt('STACKING_INTERVAL', true);
 const stakingCyclesPox5 = parseEnvInt('STACKING_CYCLES_POX_5', true);
@@ -159,6 +160,7 @@ async function submitBtcLock(account: Account, unlockBurnHeight: bigint, unlockB
 
 const grantedSignerKeys = new Set<string>();
 const depositedSBTC = new Set<string>();
+const fundedSignerKeys = new Set<string>();
 let hasDeployedSBTC = false;
 
 async function run() {
@@ -255,6 +257,8 @@ async function run() {
       grantedSignerKeys.add(account.signerManager);
     }
 
+    await fundSbtcSignerUtxo();
+
     if (!depositedSBTC.has(account.stxAddress)) {
       await depositSBTC(account);
       depositedSBTC.add(account.stxAddress);
@@ -294,14 +298,50 @@ async function run() {
   await Promise.all(txIdsToWait.map(waitForTxConfirmed));
 }
 
-async function depositSBTC(account: Account) {
-  console.log('Depositing sBTC for account:', account.stxAddress);
-  const client = new SbtcApiClientDevenv({
+function getSbtcClient() {
+  return new SbtcApiClientDevenv({
     sbtcContract: sbtcDeployerAddress,
     btcApiUrl: 'http://bitcoind:18443',
     stxApiUrl: 'http://stacks-api:3999',
     sbtcApiUrl: 'http://emily-server:3031',
   });
+}
+
+async function fundSbtcSignerUtxo() {
+  const client = getSbtcClient();
+  let signerKey = '';
+  try {
+    signerKey = await client.fetchSignersPublicKey();
+    // oxlint-disable-next-line no-unused-vars
+  } catch (_error) {
+    return;
+  }
+  if (fundedSignerKeys.has(signerKey)) return;
+
+  const regtest = { ...TEST_NETWORK, bech32: 'bcrt' };
+  const xOnlyPublicKey =
+    signerKey.length === 66 ? signerKey.slice(2) : Buffer.from(signerKey).toString('hex');
+  if (xOnlyPublicKey.length !== 64) {
+    throw new Error(
+      `Expected 32-byte x-only sBTC signer key, got ${xOnlyPublicKey.length} hex chars`
+    );
+  }
+  const signerPayment = p2tr(xOnlyPublicKey, undefined, regtest);
+  if (!signerPayment.address) {
+    throw new Error(`Could not derive sBTC signer address for aggregate key ${signerKey}`);
+  }
+
+  const txid = await sendToAddress(WALLET_NAME, signerPayment.address, 0.1);
+  logger.info(
+    { txid, address: signerPayment.address, aggregateKey: signerKey },
+    'Funded sBTC signer UTXO'
+  );
+  fundedSignerKeys.add(signerKey);
+}
+
+async function depositSBTC(account: Account) {
+  console.log('Depositing sBTC for account:', account.stxAddress);
+  const client = getSbtcClient();
   // 1. Build the sBTC deposit address
   const deposit = buildSbtcDepositAddress({
     stacksAddress: account.stxAddress, // the address to send/mint the sBTC to
@@ -309,7 +349,7 @@ async function depositSBTC(account: Account) {
     reclaimLockTime: 950, // default locktime for reclaiming failed deposits
     reclaimPublicKey: account.pubKey.slice(0, 64), // public key for reclaiming failed deposits
     network: REGTEST,
-    maxSignerFee: 1000, // max fee the signers can charge for processing the subsequent sweep tx
+    maxSignerFee: 50_000, // max fee the signers can charge for processing the subsequent sweep tx
   });
 
   // console.log('Deposit Script:', deposit.depositScript);
