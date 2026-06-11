@@ -18,8 +18,8 @@ mine_microblocks = false
 microblock_frequency = 1000
 # mine_microblocks = true
 # max_microblocks = 10
-pox_5_sbtc_contract = "ST3NBRSFKX28FQ2ZJ1MAKX58HKHSDGNV5N7R21XCP.sbtc-token"
-pox_5_sbtc_registry_contract = "ST3NBRSFKX28FQ2ZJ1MAKX58HKHSDGNV5N7R21XCP.sbtc-registry"
+pox_5_sbtc_contract = "$SBTC_DEPLOYER_ADDRESS.sbtc-token"
+pox_5_sbtc_registry_contract = "$SBTC_DEPLOYER_ADDRESS.sbtc-registry"
 # Shared bond admin account
 pox_5_bond_admin = "ST1V2ASRWGR81W7GBN1Z4W2JQKXJWCADPVZG30X45"
 
@@ -210,4 +210,9 @@ amount = 10000000000000000
 
 [[ustx_balance]]
 address = "ST1V2ASRWGR81W7GBN1Z4W2JQKXJWCADPVZG30X45"
+amount = 10000000000000000
+
+# sBTC deployer account
+[[ustx_balance]]
+address = "$SBTC_DEPLOYER_ADDRESS"
 amount = 10000000000000000

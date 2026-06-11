@@ -36,6 +36,7 @@ x-common-vars:
   - &STACKS_CHAIN_ID ${STACKS_CHAIN_ID:-0x80000000}
   # - &STACKS_CHAIN_ID ${STACKS_CHAIN_ID:-0x80000100}
   - &CUSTOM_CHAIN_IDS ${CUSTOM_CHAIN_IDS:-testnet=0x55005500,mainnet=12345678,mainnet=0xdeadbeaf,testnet=0x80000100}
+  - &SBTC_DEPLOYER_ADDRESS ${SBTC_DEPLOYER_ADDRESS:-SN3R84XZYA63QS28932XQF3G1J8R9PC3W76P9CSQS}
 
 x-sbtc-postgres: &sbtc-postgres
   networks:
@@ -317,6 +318,7 @@ services:
       REWARD_RECIPIENT: *REWARD_RECIPIENT
       STACKS_CHAIN_ID: *STACKS_CHAIN_ID
       STACKS_LOG_JSON: 1
+      SBTC_DEPLOYER_ADDRESS: *SBTC_DEPLOYER_ADDRESS
     entrypoint:
       - /bin/bash
       - -c
@@ -384,6 +386,7 @@ services:
       BITCOIN_RPC_USER: *BITCOIN_RPC_USER
       BITCOIN_RPC_PASS: *BITCOIN_RPC_PASS
       BTC_LOCK_AMOUNT_SATS: 100000
+      SBTC_DEPLOYER_ADDRESS: *SBTC_DEPLOYER_ADDRESS
     depends_on:
       - stacks-node
       - bitcoind

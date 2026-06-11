@@ -36,6 +36,7 @@ import { readFile } from 'node:fs/promises';
 const stakingInterval = parseEnvInt('STACKING_INTERVAL', true);
 const stakingCyclesPox5 = parseEnvInt('STACKING_CYCLES_POX_5', true);
 const lockAmountSats = BigInt(parseEnvInt('BTC_LOCK_AMOUNT_SATS', false) ?? 10_000_000);
+const sbtcDeployerAddress = process.env.SBTC_DEPLOYER_ADDRESS!;
 
 let txFee = parseEnvInt('STACKING_FEE', false) ?? 1_000_000;
 const getNextTxFee = () => txFee++;
@@ -195,6 +196,7 @@ async function run() {
         contractName: 'signer-manager',
         codeBody: signerManager
           .replaceAll(' .pox-5', ` '${pox5.identifier}`)
+          .replaceAll('SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4', sbtcDeployerAddress)
           .replaceAll(
             'SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4',
             'ST3NBRSFKX28FQ2ZJ1MAKX58HKHSDGNV5N7R21XCP'
@@ -275,6 +277,8 @@ async function run() {
 }
 
 async function deploySBTC(account: Account) {
+  console.log('Skipping sBTC Deployment');
+  return;
   const registry = await readFile(
     'contracts/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-registry.clar',
     'utf8'
