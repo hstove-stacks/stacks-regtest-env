@@ -5,7 +5,7 @@ import {
   makeContractDeploy,
 } from '@stacks/transactions';
 import { hex } from '@scure/base';
-import { PoxInfo } from '@stacks/stacking';
+import { PoxInfo, V2PoxInfoResponse } from '@stacks/stacking';
 import {
   accounts,
   parseEnvInt,
@@ -164,7 +164,13 @@ const fundedSignerKeys = new Set<string>();
 let hasDeployedSBTC = false;
 
 async function run() {
-  const poxInfo = await accounts[0]!.client.getPoxInfo();
+  let poxInfo: V2PoxInfoResponse;
+  try {
+    poxInfo = await accounts[0]!.client.getPoxInfo();
+    // oxlint-disable-next-line no-unused-vars
+  } catch (error) {
+    return;
+  }
 
   if (poxInfo.current_burnchain_block_height! > EPOCH_30_START + 1 && !hasDeployedSBTC) {
     await deploySBTC(accounts[0]!);
@@ -319,8 +325,14 @@ async function fundSbtcSignerUtxo() {
   if (fundedSignerKeys.has(signerKey)) return;
 
   const regtest = { ...TEST_NETWORK, bech32: 'bcrt' };
-  const xOnlyPublicKey =
-    signerKey.length === 66 ? signerKey.slice(2) : Buffer.from(signerKey).toString('hex');
+  const signerKeyHex = signerKey.startsWith('0x') ? signerKey.slice(2) : signerKey;
+  const xOnlyPublicKey = (() => {
+    if (signerKeyHex.length === 64) return signerKeyHex;
+    if (signerKeyHex.length === 66) return signerKeyHex.slice(2);
+    if (signerKeyHex.length === 128) return signerKeyHex.slice(0, 64);
+    if (signerKeyHex.length === 130 && signerKeyHex.startsWith('04')) return signerKeyHex.slice(2, 66);
+    return Buffer.from(signerKey).toString('hex');
+  })();
   if (xOnlyPublicKey.length !== 64) {
     throw new Error(
       `Expected 32-byte x-only sBTC signer key, got ${xOnlyPublicKey.length} hex chars`
@@ -342,7 +354,7 @@ async function fundSbtcSignerUtxo() {
 async function depositSBTC(account: Account) {
   console.log('Depositing sBTC for account:', account.stxAddress);
   const client = getSbtcClient();
-  // 1. Build the sBTC deposit address
+
   const deposit = buildSbtcDepositAddress({
     stacksAddress: account.stxAddress, // the address to send/mint the sBTC to
     signersPublicKey: await client.fetchSignersPublicKey(), // the aggregated public key of the signers
@@ -351,10 +363,6 @@ async function depositSBTC(account: Account) {
     network: REGTEST,
     maxSignerFee: 50_000, // max fee the signers can charge for processing the subsequent sweep tx
   });
-
-  // console.log('Deposit Script:', deposit.depositScript);
-  // console.log('Reclaim Script:', deposit.reclaimScript);
-  // console.log('P2TR Output:', deposit.trOut);
   console.log('Deposit Address:', { address: deposit.address, account: account.stxAddress });
 
   const txid = await sendToAddress(WALLET_NAME, deposit.address, 0.1);

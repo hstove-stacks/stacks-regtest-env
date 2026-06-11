@@ -60,6 +60,34 @@ events_keys = ["stackerdb", "block_proposal", "burn_blocks"]
 endpoint = "stacks-signer-3:30003"
 events_keys = ["stackerdb", "block_proposal", "burn_blocks"]
 
+[[events_observer]]
+endpoint = "emily-sidecar:20540"
+events_keys = [
+  "$SBTC_DEPLOYER_ADDRESS.sbtc-registry::print",
+]
+timeout_ms = 10_000
+
+[[events_observer]]
+endpoint = "sbtc-signer-1:8801"
+events_keys = [
+  "$SBTC_DEPLOYER_ADDRESS.sbtc-registry::print",
+]
+timeout_ms = 10_000
+
+[[events_observer]]
+endpoint = "sbtc-signer-2:8801"
+events_keys = [
+  "$SBTC_DEPLOYER_ADDRESS.sbtc-registry::print",
+]
+timeout_ms = 10_000
+
+[[events_observer]]
+endpoint = "sbtc-signer-3:8801"
+events_keys = [
+  "$SBTC_DEPLOYER_ADDRESS.sbtc-registry::print",
+]
+timeout_ms = 10_000
+
 [burnchain]
 chain = "bitcoin"
 mode = "krypton"
