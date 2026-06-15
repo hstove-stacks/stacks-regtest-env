@@ -161,7 +161,6 @@ async function submitBtcLock(account: Account, unlockBurnHeight: bigint, unlockB
 const grantedSignerKeys = new Set<string>();
 const depositedSBTC = new Set<string>();
 const fundedSignerKeys = new Set<string>();
-let hasDeployedSBTC = false;
 
 async function maybeCalculateRewards(account: Account) {
   const pox5Info = await clarigenClient.ro(pox5.getPoxInfo());
@@ -242,11 +241,6 @@ async function run() {
     // oxlint-disable-next-line no-unused-vars
   } catch (error) {
     return;
-  }
-
-  if (poxInfo.current_burnchain_block_height! > EPOCH_30_START + 1 && !hasDeployedSBTC) {
-    await deploySBTC(accounts[0]!);
-    hasDeployedSBTC = true;
   }
   if (poxInfo.current_burnchain_block_height! < EPOCH_40_START) {
     // logger.info({ burnHeight: poxInfo.current_burnchain_block_height }, 'Not on epoch 3.5 yet, skipping');
@@ -461,49 +455,6 @@ async function depositSBTC(account: Account) {
   console.log('Transaction:', { transaction, vout });
   const notifyResult = await client.notifySbtc({ ...deposit, transaction, vout });
   console.log('Notified sbtc:', { notifyResult, txid });
-}
-
-async function deploySBTC(account: Account) {
-  console.log('Skipping sBTC Deployment');
-  return;
-  const registry = await readFile(
-    'contracts/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-registry.clar',
-    'utf8'
-  );
-  const token = await readFile(
-    'contracts/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token.clar',
-    'utf8'
-  );
-  const withdrawal = await readFile(
-    'contracts/SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-withdrawal.clar',
-    'utf8'
-  );
-
-  async function deployContract(contract: string, name: string) {
-    const deployTx = await makeContractDeploy({
-      senderKey: accounts[0]!.privKey,
-      network,
-      contractName: name,
-      codeBody: contract,
-      clarityVersion: 3,
-    });
-    const deployResult = await broadcastTransaction({
-      transaction: deployTx,
-      network,
-    });
-    if ('reason' in deployResult) {
-      if (deployResult.reason === 'ContractAlreadyExists') {
-        return;
-      }
-      throw new Error(`Error deploying sbtc contract: ${deployResult.reason}`);
-    }
-    account.logger.info({ ...deployResult, contractName: name }, 'Deployed sbtc contract');
-    await waitForTxConfirmed(deployResult.txid);
-  }
-
-  await deployContract(registry, 'sbtc-registry');
-  await deployContract(token, 'sbtc-token');
-  await deployContract(withdrawal, 'sbtc-withdrawal');
 }
 
 async function loop() {
