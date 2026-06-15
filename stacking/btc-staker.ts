@@ -163,6 +163,78 @@ const depositedSBTC = new Set<string>();
 const fundedSignerKeys = new Set<string>();
 let hasDeployedSBTC = false;
 
+async function maybeCalculateRewards(account: Account) {
+  const pox5Info = await clarigenClient.ro(pox5.getPoxInfo());
+  if (!pox5Info.value) return;
+
+  const cycleLength = pox5Info.value.rewardCycleLength;
+  const firstBurnHeight = pox5Info.value.firstBurnchainBlockHeight;
+  const currentBurnHeight = BigInt(
+    (await account.client.getPoxInfo()).current_burnchain_block_height!
+  );
+  const distributionLength = cycleLength / 2n;
+  const currentDistributionCycle = (currentBurnHeight - firstBurnHeight) / distributionLength;
+  if (currentDistributionCycle === 0n) return;
+
+  const calculationHeight = firstBurnHeight + currentDistributionCycle * distributionLength - 1n;
+  const lastCalculationHeight = await clarigenClient.ro(pox5.getLastRewardComputeHeight());
+  if (calculationHeight <= lastCalculationHeight) return;
+
+  const calculationRewardCycle = (calculationHeight - firstBurnHeight) / cycleLength;
+  const firstBondCycle = await clarigenClient.ro(pox5.getFirstPox5RewardCycle());
+  const latestBondIndex =
+    calculationRewardCycle <= firstBondCycle ? 0n : (calculationRewardCycle - firstBondCycle) / 2n;
+  const bondPeriods = (
+    await Promise.all(
+      Array.from({ length: 6 }, async (_, offset) => {
+        const bondIndex = latestBondIndex - BigInt(offset);
+        if (bondIndex < 0n) return null;
+        const bond = await clarigenClient.ro(pox5.getProtocolBond(bondIndex));
+        if (!bond) return null;
+        const bondStartHeight = firstBurnHeight + (firstBondCycle + bondIndex * 2n) * cycleLength;
+        const bondEndHeight =
+          firstBurnHeight + (firstBondCycle + (bondIndex + 6n) * 2n) * cycleLength;
+        if (calculationHeight <= bondStartHeight || calculationHeight > bondEndHeight) return null;
+        return { bondIndex, stxValueRatio: bond.stxValueRatio };
+      })
+    )
+  )
+    .filter((bond): bond is { bondIndex: bigint; stxValueRatio: bigint } => bond !== null)
+    .sort((a, b) => {
+      if (a.stxValueRatio === b.stxValueRatio) return a.bondIndex < b.bondIndex ? -1 : 1;
+      return a.stxValueRatio > b.stxValueRatio ? -1 : 1;
+    })
+    .map(bond => bond.bondIndex);
+
+  const tx = await makeContractCall({
+    ...pox5.calculateRewards({ bondPeriods }),
+    senderKey: account.privKey,
+    network,
+    fee: getNextTxFee(),
+    nonce: (await fetchAccount(account.stxAddress)).nonce,
+  });
+  const result = await broadcastTransaction({
+    transaction: tx,
+    network,
+  });
+  if ('reason' in result) {
+    account.logger.error(
+      { ...result, calculationHeight: calculationHeight.toString() },
+      `Error calculating rewards: ${result.reason}`
+    );
+    throw new Error(`Error calculating rewards: ${result.reason}`);
+  }
+  account.logger.info(
+    {
+      txid: result.txid,
+      calculationHeight: calculationHeight.toString(),
+      bondPeriods: bondPeriods.map(String),
+    },
+    'calculate-rewards tx broadcast'
+  );
+  await waitForTxConfirmed(result.txid);
+}
+
 async function run() {
   let poxInfo: V2PoxInfoResponse;
   try {
@@ -182,6 +254,8 @@ async function run() {
   }
 
   const currentCycle = poxInfo.reward_cycle_id;
+
+  await maybeCalculateRewards(accounts[0]!);
 
   const accountInfos = await Promise.all(
     accounts.map(async a => {
@@ -330,7 +404,8 @@ async function fundSbtcSignerUtxo() {
     if (signerKeyHex.length === 64) return signerKeyHex;
     if (signerKeyHex.length === 66) return signerKeyHex.slice(2);
     if (signerKeyHex.length === 128) return signerKeyHex.slice(0, 64);
-    if (signerKeyHex.length === 130 && signerKeyHex.startsWith('04')) return signerKeyHex.slice(2, 66);
+    if (signerKeyHex.length === 130 && signerKeyHex.startsWith('04'))
+      return signerKeyHex.slice(2, 66);
     return Buffer.from(signerKey).toString('hex');
   })();
   if (xOnlyPublicKey.length !== 64) {
